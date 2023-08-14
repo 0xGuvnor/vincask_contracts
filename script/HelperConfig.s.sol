@@ -28,6 +28,9 @@ contract HelperConfig is Script {
         } else if (block.chainid == 11155111) {
             // Sepolia testnet config
             activeNetworkConfig = getSepoliaConfig();
+        } else if (block.chainid == 5) {
+            // Goerli testnet config
+            activeNetworkConfig = getGoerliConfig();
         } else {
             // Local Anvil config
             activeNetworkConfig = getAnvilConfig();
@@ -41,6 +44,17 @@ contract HelperConfig is Script {
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             usdc: 0xe0f8792e4521706ddEfdBFad1a4785257e83d17E,
+            multiSig: msg.sender,
+            royaltyFee: ROYALTY_FEE,
+            deployerKey: vm.envUint("PRIVATE_KEY")
+        });
+    }
+
+    function getGoerliConfig() public view returns (NetworkConfig memory) {
+        return NetworkConfig({
+            totalSupply: TOTAL_SUPPLY,
+            mintPrice: MINT_PRICE,
+            usdc: 0x13Fb0f5445E75425dE69d974f5614a2EFc332eC3,
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")

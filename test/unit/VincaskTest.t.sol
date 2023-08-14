@@ -16,6 +16,7 @@ contract VincaskTest is Test {
     uint256 mintPrice;
     address usdcAddr;
     address multiSig;
+    uint96 royaltyFee;
     ERC20Mock public usdc;
 
     address public USER = makeAddr("user");
@@ -23,7 +24,7 @@ contract VincaskTest is Test {
     function setUp() external {
         DeployVincask deployer = new DeployVincask();
         (vin, vinX, config) = deployer.run();
-        (totalSupply, mintPrice, usdcAddr, multiSig,) = config.activeNetworkConfig();
+        (totalSupply, mintPrice, usdcAddr, multiSig, royaltyFee,) = config.activeNetworkConfig();
         usdc = ERC20Mock(usdcAddr);
 
         usdc.mint(USER, 100_000 ether);
