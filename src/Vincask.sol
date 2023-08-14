@@ -63,6 +63,24 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         if (!success) revert Vincask__PaymentFailed();
     }
 
+    function safeMultiMintWithCreditCard(uint256 _quantity, address _to) external whenNotPaused {
+        if (tokenCounter + _quantity > TOTAL_SUPPLY) revert Vincask__MaxSupplyExceeded();
+        if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
+
+        uint256 totalPrice = _quantity * mintPrice;
+
+        for (uint256 i = 0; i < _quantity; ++i) {
+            // Token ID is incremented first so that token ID starts at 1
+            tokenCounter++;
+            uint256 tokenId = tokenCounter;
+
+            _safeMint(_to, tokenId);
+        }
+
+        bool success = paymentToken.transferFrom(_to, MULTI_SIG, totalPrice);
+        if (!success) revert Vincask__PaymentFailed();
+    }
+
     function safeMultiMintForAdmin(uint256 _quantity) external onlyOwner {
         if (tokenCounter + _quantity > TOTAL_SUPPLY) revert Vincask__MaxSupplyExceeded();
         if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
