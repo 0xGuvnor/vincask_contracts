@@ -18,6 +18,7 @@ contract HelperConfig is Script {
 
     uint256 public constant TOTAL_SUPPLY = 125;
     uint256 public constant MINT_PRICE = 20_000 ether;
+    address public constant MULTI_SIG = address(0);
     uint96 public constant ROYALTY_FEE = 500; /* 500 = 5% */
     uint256 public constant ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
@@ -37,11 +38,20 @@ contract HelperConfig is Script {
         }
     }
 
-    function getMainnetConfig() public view returns (NetworkConfig memory) {}
+    function getMainnetConfig() public view returns (NetworkConfig memory) {
+        return NetworkConfig({
+            totalSupply: TOTAL_SUPPLY,
+            mintPrice: MINT_PRICE,
+            usdc: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
+            multiSig: MULTI_SIG,
+            royaltyFee: ROYALTY_FEE,
+            deployerKey: vm.envUint("PRIVATE_KEY")
+        });
+    }
 
     function getSepoliaConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            totalSupply: TOTAL_SUPPLY,
+            totalSupply: 8888,
             mintPrice: MINT_PRICE,
             usdc: 0xe0f8792e4521706ddEfdBFad1a4785257e83d17E,
             multiSig: msg.sender,
@@ -52,7 +62,7 @@ contract HelperConfig is Script {
 
     function getGoerliConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            totalSupply: TOTAL_SUPPLY,
+            totalSupply: 8888,
             mintPrice: MINT_PRICE,
             usdc: 0x13Fb0f5445E75425dE69d974f5614a2EFc332eC3,
             multiSig: msg.sender,
