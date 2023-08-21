@@ -49,14 +49,11 @@ contract HelperConfig is Script {
         });
     }
 
-    function getSepoliaConfig() public returns (NetworkConfig memory) {
-        vm.broadcast();
-        UsdcMock usdcMock = new UsdcMock();
-
+    function getSepoliaConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
             totalSupply: 8888,
             mintPrice: MINT_PRICE,
-            usdc: address(usdcMock),
+            usdc: 0xee3a254b0810FC5de2771057D97ed1DD0a6fD330,
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -68,7 +65,7 @@ contract HelperConfig is Script {
             totalSupply: 8888,
             mintPrice: MINT_PRICE,
             usdc: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a,
-            multiSig: msg.sender,
+            multiSig: 0x9f7b64a21c3872331B94C04756643cBdaCaeAefb,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
