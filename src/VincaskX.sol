@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract VincaskX is ERC721, Ownable {
     constructor() ERC721("Vincask-X", "VIN-X") {}
 
-    function safeMint(address _to, uint256 _tokenId) public onlyOwner {
+    function safeMint(address _to, uint256 _tokenId) external onlyOwner {
         _safeMint(_to, _tokenId);
     }
 

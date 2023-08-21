@@ -18,7 +18,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
     uint256 private tokenCounter;
     uint256 private mintPrice;
-    IERC20 private paymentToken;
+    IERC20 private stableCoin;
 
     uint256 private immutable TOTAL_SUPPLY;
     address private immutable MULTI_SIG;
@@ -26,15 +26,16 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
 
     constructor(
         uint256 _mintPrice,
-        address _paymentToken,
+        address _stableCoin,
         uint256 _totalSupply,
         address _multiSig,
         uint96 _royaltyFee, /* Expressed in basis points i.e. 500 = 5% */
         VincaskX _VIN_X
     ) ERC721("Vincask", "VIN") {
         tokenCounter = 0;
+
         mintPrice = _mintPrice;
-        paymentToken = IERC20(_paymentToken);
+        stableCoin = IERC20(_stableCoin);
         TOTAL_SUPPLY = _totalSupply;
         MULTI_SIG = _multiSig;
         _setDefaultRoyalty(_multiSig, _royaltyFee);
@@ -59,7 +60,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
             _safeMint(msg.sender, tokenId);
         }
 
-        bool success = paymentToken.transferFrom(msg.sender, MULTI_SIG, totalPrice);
+        bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
         if (!success) revert Vincask__PaymentFailed();
     }
 
@@ -67,7 +68,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         if (tokenCounter + _quantity > TOTAL_SUPPLY) revert Vincask__MaxSupplyExceeded();
         if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
 
-        uint256 totalPrice = _quantity * mintPrice;
+        uint256 totalPrice = _quantity * 25_000e6; // 6 decimal places for USDC
 
         for (uint256 i = 0; i < _quantity; ++i) {
             // Token ID is incremented first so that token ID starts at 1
@@ -77,7 +78,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
             _safeMint(_to, tokenId);
         }
 
-        bool success = paymentToken.transferFrom(_to, MULTI_SIG, totalPrice);
+        bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
         if (!success) revert Vincask__PaymentFailed();
     }
 
@@ -94,13 +95,29 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         }
     }
 
-    function multiRedeemAndBurn(uint256[] calldata _tokenIds) external whenNotPaused {
+    function multiRedeem(uint256[] calldata _tokenIds) external whenNotPaused {
         uint256 numberOfTokens = _tokenIds.length;
 
         for (uint256 i = 0; i < numberOfTokens; ++i) {
+            if (_isApprovedOrOwner(address(this), _tokenIds[i]) == false) revert Vincask__CallerNotAuthorised();
+
             uint256 tokenId = _tokenIds[i];
-            _burn(tokenId);
+            transferFrom(msg.sender, MULTI_SIG, tokenId);
             VIN_X.safeMint(msg.sender, tokenId);
+        }
+    }
+
+    /**
+     * @dev Using this function to set approvals instead of setApprovalForAll
+     * to avoid scaring users with the MetaMask warning
+     * @param _tokenIds Tokens to approve
+     */
+    function multiApprove(uint256[] calldata _tokenIds) external {
+        uint256 numOfTokens = _tokenIds.length;
+        if (numOfTokens == 0) revert Vincask__MustApproveAtLeastOne();
+
+        for (uint256 i = 0; i < numOfTokens; ++i) {
+            approve(address(this), _tokenIds[i]);
         }
     }
 
@@ -108,8 +125,8 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         mintPrice = _newPrice;
     }
 
-    function setPaymentToken(address _newPaymentToken) external onlyOwner {
-        paymentToken = IERC20(_newPaymentToken);
+    function setStableCoin(address _newStableCoin) external onlyOwner {
+        stableCoin = IERC20(_newStableCoin);
     }
 
     function _baseURI() internal pure override returns (string memory) {
@@ -128,8 +145,8 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         return mintPrice;
     }
 
-    function getPaymentToken() external view returns (address) {
-        return address(paymentToken);
+    function getStableCoin() external view returns (address) {
+        return address(stableCoin);
     }
 
     function pause() external onlyOwner {

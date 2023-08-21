@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Script.sol";
-import "@openzeppelin/contracts/mocks/ERC20Mock.sol";
+import "../src/mocks/UsdcMock.sol";
 
 contract HelperConfig is Script {
     struct NetworkConfig {
@@ -17,7 +17,7 @@ contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
 
     uint256 public constant TOTAL_SUPPLY = 125;
-    uint256 public constant MINT_PRICE = 20_000 ether;
+    uint256 public constant MINT_PRICE = 20_000e6; // 6 decimal places for USDC
     address public constant MULTI_SIG = address(0);
     uint96 public constant ROYALTY_FEE = 500; /* 500 = 5% */
     uint256 public constant ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
@@ -49,11 +49,14 @@ contract HelperConfig is Script {
         });
     }
 
-    function getSepoliaConfig() public view returns (NetworkConfig memory) {
+    function getSepoliaConfig() public returns (NetworkConfig memory) {
+        vm.broadcast();
+        UsdcMock usdcMock = new UsdcMock();
+
         return NetworkConfig({
             totalSupply: 8888,
             mintPrice: MINT_PRICE,
-            usdc: 0xe0f8792e4521706ddEfdBFad1a4785257e83d17E,
+            usdc: address(usdcMock),
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -64,7 +67,7 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: 8888,
             mintPrice: MINT_PRICE,
-            usdc: 0x13Fb0f5445E75425dE69d974f5614a2EFc332eC3,
+            usdc: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a,
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -77,7 +80,7 @@ contract HelperConfig is Script {
         }
 
         vm.broadcast();
-        ERC20Mock usdcMock = new ERC20Mock();
+        UsdcMock usdcMock = new UsdcMock();
 
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,

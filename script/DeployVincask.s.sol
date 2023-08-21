@@ -18,7 +18,7 @@ contract DeployVincask is Script {
 
         // vin.pause();
         // vin.transferOwnership(multiSig);
-        // vinX.transferOwnership(address(vin));
+        vinX.transferOwnership(address(vin));
         vm.stopBroadcast();
 
         return (vin, vinX, config);
