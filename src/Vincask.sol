@@ -10,6 +10,20 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+/*
+      ___                       ___           ___           ___           ___           ___     
+     /\__\          ___        /\__\         /\  \         /\  \         /\  \         /\__\    
+    /:/  /         /\  \      /::|  |       /::\  \       /::\  \       /::\  \       /:/  /    
+   /:/  /          \:\  \    /:|:|  |      /:/\:\  \     /:/\:\  \     /:/\ \  \     /:/__/     
+  /:/__/  ___      /::\__\  /:/|:|  |__   /:/  \:\  \   /::\~\:\  \   _\:\~\ \  \   /::\__\____ 
+  |:|  | /\__\  __/:/\/__/ /:/ |:| /\__\ /:/__/ \:\__\ /:/\:\ \:\__\ /\ \:\ \ \__\ /:/\:::::\__\
+  |:|  |/:/  / /\/:/  /    \/__|:|/:/  / \:\  \  \/__/ \/__\:\/:/  / \:\ \:\ \/__/ \/_|:|~~|~   
+  |:|__/:/  /  \::/__/         |:/:/  /   \:\  \            \::/  /   \:\ \:\__\      |:|  |    
+   \::::/__/    \:\__\         |::/  /     \:\  \           /:/  /     \:\/:/  /      |:|  |    
+    ~~~~         \/__/         /:/  /       \:\__\         /:/  /       \::/  /       |:|  |    
+                               \/__/         \/__/         \/__/         \/__/         \|__|    
+*/
+
 /**
  * @title Vincask NFT contract
  * @author 0xGuvnor
@@ -19,8 +33,8 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
     uint256 private tokenCounter;
     uint256 private mintPrice;
     IERC20 private stableCoin;
+    uint256 private totalSupply;
 
-    uint256 private immutable TOTAL_SUPPLY;
     address private immutable MULTI_SIG;
     VincaskX private immutable VIN_X;
 
@@ -29,27 +43,29 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         address _stableCoin,
         uint256 _totalSupply,
         address _multiSig,
-        uint96 _royaltyFee, /* Expressed in basis points i.e. 500 = 5% */
-        VincaskX _VIN_X
+        VincaskX _VIN_X,
+        uint96 _royaltyFee /* Expressed in basis points i.e. 500 = 5% */
     ) ERC721("Vincask", "VIN") {
-        tokenCounter = 0;
-
         mintPrice = _mintPrice;
         stableCoin = IERC20(_stableCoin);
-        TOTAL_SUPPLY = _totalSupply;
+        totalSupply = _totalSupply;
         MULTI_SIG = _multiSig;
-        _setDefaultRoyalty(_multiSig, _royaltyFee);
         VIN_X = _VIN_X;
+
+        _setDefaultRoyalty(_multiSig, _royaltyFee);
+    }
+
+    modifier ableToMint(uint256 _quantity) {
+        if (tokenCounter + _quantity > totalSupply) revert Vincask__MaxSupplyExceeded();
+        if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
+        _;
     }
 
     /**
      * @notice This function allows a customer to mint multiple NFTs in one transaction
      * @param _quantity The number of NFTs to mint
      */
-    function safeMultiMintWithUsdc(uint256 _quantity) external whenNotPaused {
-        if (tokenCounter + _quantity > TOTAL_SUPPLY) revert Vincask__MaxSupplyExceeded();
-        if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
-
+    function safeMultiMintWithStableCoin(uint256 _quantity) external ableToMint(_quantity) whenNotPaused {
         uint256 totalPrice = _quantity * mintPrice;
 
         for (uint256 i = 0; i < _quantity; ++i) {
@@ -64,10 +80,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         if (!success) revert Vincask__PaymentFailed();
     }
 
-    function safeMultiMintWithCreditCard(uint256 _quantity, address _to) external whenNotPaused {
-        if (tokenCounter + _quantity > TOTAL_SUPPLY) revert Vincask__MaxSupplyExceeded();
-        if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
-
+    function safeMultiMintWithCreditCard(uint256 _quantity, address _to) external ableToMint(_quantity) whenNotPaused {
         uint256 totalPrice = _quantity * 25_000e6; // 6 decimal places for USDC
 
         for (uint256 i = 0; i < _quantity; ++i) {
@@ -82,16 +95,24 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         if (!success) revert Vincask__PaymentFailed();
     }
 
-    function safeMultiMintForAdmin(uint256 _quantity) external onlyOwner {
-        if (tokenCounter + _quantity > TOTAL_SUPPLY) revert Vincask__MaxSupplyExceeded();
-        if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
-
+    /**
+     * @notice Allows the owner to mint and burn NFTs at no cost.
+     * Intended to be used for physical sales that do not want the NFT.
+     * @param _quantity The number of NFTs to mint and burn
+     */
+    function safeMultiMintAndBurnForAdmin(uint256 _quantity) external ableToMint(_quantity) onlyOwner {
         for (uint256 i = 0; i < _quantity; ++i) {
             // Token ID is incremented first so that token ID starts at 1
             tokenCounter++;
             uint256 tokenId = tokenCounter;
 
             _safeMint(msg.sender, tokenId);
+            _burn(tokenId);
+        }
+
+        unchecked {
+            // Underflow not possible due to max supply check above
+            totalSupply -= _quantity;
         }
     }
 
@@ -134,7 +155,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
     }
 
     function getTotalSupply() external view returns (uint256) {
-        return TOTAL_SUPPLY;
+        return totalSupply;
     }
 
     function getLatestTokenId() external view returns (uint256) {
@@ -145,8 +166,15 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         return mintPrice;
     }
 
+    /**
+     * @notice Returns the address for the stable coin used for payment
+     */
     function getStableCoin() external view returns (address) {
         return address(stableCoin);
+    }
+
+    function getMultiSig() external view returns (address) {
+        return MULTI_SIG;
     }
 
     function pause() external onlyOwner {

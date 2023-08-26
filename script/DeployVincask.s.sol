@@ -9,12 +9,18 @@ import "./HelperConfig.s.sol";
 contract DeployVincask is Script {
     function run() external returns (Vincask, VincaskX, HelperConfig) {
         HelperConfig config = new HelperConfig();
-        (uint256 totalSupply, uint256 mintPrice, address usdc, address multiSig, uint96 royaltyFee, uint256 deployerKey)
-        = config.activeNetworkConfig();
+        (
+            uint256 totalSupply,
+            uint256 mintPrice,
+            address stableCoin,
+            address multiSig,
+            uint96 royaltyFee,
+            uint256 deployerKey
+        ) = config.activeNetworkConfig();
 
         vm.startBroadcast(deployerKey);
         VincaskX vinX = new VincaskX();
-        Vincask vin = new Vincask(mintPrice, usdc, totalSupply, multiSig, royaltyFee, vinX);
+        Vincask vin = new Vincask(mintPrice, stableCoin, totalSupply, multiSig, vinX, royaltyFee);
 
         // vin.pause();
         // vin.transferOwnership(multiSig);

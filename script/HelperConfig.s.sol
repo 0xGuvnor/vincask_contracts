@@ -8,7 +8,7 @@ contract HelperConfig is Script {
     struct NetworkConfig {
         uint256 totalSupply;
         uint256 mintPrice;
-        address usdc;
+        address stableCoin;
         address multiSig;
         uint96 royaltyFee;
         uint256 deployerKey;
@@ -42,7 +42,7 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            usdc: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
+            stableCoin: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
             multiSig: MULTI_SIG,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -51,9 +51,9 @@ contract HelperConfig is Script {
 
     function getSepoliaConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            totalSupply: 8888,
+            totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            usdc: 0xee3a254b0810FC5de2771057D97ed1DD0a6fD330,
+            stableCoin: 0xee3a254b0810FC5de2771057D97ed1DD0a6fD330,
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -62,9 +62,9 @@ contract HelperConfig is Script {
 
     function getGoerliConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            totalSupply: 8888,
+            totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            usdc: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a,
+            stableCoin: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a,
             multiSig: 0x9f7b64a21c3872331B94C04756643cBdaCaeAefb,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -72,7 +72,7 @@ contract HelperConfig is Script {
     }
 
     function getAnvilConfig() public returns (NetworkConfig memory) {
-        if (activeNetworkConfig.usdc != address(0)) {
+        if (activeNetworkConfig.stableCoin != address(0)) {
             return activeNetworkConfig;
         }
 
@@ -82,7 +82,7 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            usdc: address(usdcMock),
+            stableCoin: address(usdcMock),
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: ANVIL_PRIVATE_KEY
