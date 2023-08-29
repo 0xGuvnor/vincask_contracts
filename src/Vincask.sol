@@ -6,6 +6,7 @@ import "./VincaskX.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Royalty.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -29,7 +30,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @author 0xGuvnor
  * @notice X
  */
-contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
+contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, Ownable {
     uint256 private tokenCounter;
     uint256 private mintPrice;
     IERC20 private stableCoin;
@@ -111,7 +112,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         }
 
         unchecked {
-            // Underflow not possible due to max supply check above
+            // Underflow not possible as you can't burn more than you mint
             totalSupply -= _quantity;
         }
     }
@@ -142,16 +143,28 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
         }
     }
 
-    function setMintPrice(uint256 _newPrice) external onlyOwner {
-        mintPrice = _newPrice;
+    function burn(uint256 _tokenId) public override onlyOwner {
+        super.burn(_tokenId);
+    }
+
+    function multiBurn(uint256[] calldata _tokenIds) external onlyOwner {
+        uint256 numOfTokens = _tokenIds.length;
+
+        for (uint256 i = 0; i < numOfTokens; ++i) {
+            burn(_tokenIds[i]);
+        }
+    }
+
+    function setMintPrice(uint256 _newMintPrice) external onlyOwner {
+        if (mintPrice == _newMintPrice) revert Vincask__MustSetDifferentPrice();
+
+        mintPrice = _newMintPrice;
     }
 
     function setStableCoin(address _newStableCoin) external onlyOwner {
-        stableCoin = IERC20(_newStableCoin);
-    }
+        if (stableCoin == IERC20(_newStableCoin)) revert Vincask__MustSetDifferentStableCoin();
 
-    function _baseURI() internal pure override returns (string memory) {
-        return "ipfs://abc/";
+        stableCoin = IERC20(_newStableCoin);
     }
 
     function getTotalSupply() external view returns (uint256) {
@@ -183,6 +196,10 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, Pausable, Ownable {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function _baseURI() internal pure override returns (string memory) {
+        return "ipfs://abc/";
     }
 
     /**

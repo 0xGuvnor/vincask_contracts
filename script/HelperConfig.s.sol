@@ -16,6 +16,8 @@ contract HelperConfig is Script {
 
     NetworkConfig public activeNetworkConfig;
 
+    address public TEST_MULTI_SIG = makeAddr("testMultiSig");
+
     uint256 public constant TOTAL_SUPPLY = 125;
     uint256 public constant MINT_PRICE = 20_000e6; // 6 decimal places for USDC
     address public constant MULTI_SIG = address(0);
@@ -83,7 +85,7 @@ contract HelperConfig is Script {
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: address(usdcMock),
-            multiSig: msg.sender,
+            multiSig: TEST_MULTI_SIG,
             royaltyFee: ROYALTY_FEE,
             deployerKey: ANVIL_PRIVATE_KEY
         });

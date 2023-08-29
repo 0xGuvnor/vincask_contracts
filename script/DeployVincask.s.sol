@@ -23,7 +23,7 @@ contract DeployVincask is Script {
         Vincask vin = new Vincask(mintPrice, stableCoin, totalSupply, multiSig, vinX, royaltyFee);
 
         // vin.pause();
-        // vin.transferOwnership(multiSig);
+        vin.transferOwnership(multiSig);
         vinX.transferOwnership(address(vin));
         vm.stopBroadcast();
 

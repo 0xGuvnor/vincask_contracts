@@ -7,4 +7,6 @@ interface IVincask {
     error Vincask__MustApproveAtLeastOne();
     error Vincask__PaymentFailed();
     error Vincask__CallerNotAuthorised();
+    error Vincask__MustSetDifferentPrice();
+    error Vincask__MustSetDifferentStableCoin();
 }
