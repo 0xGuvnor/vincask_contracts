@@ -3,13 +3,13 @@ pragma solidity ^0.8.18;
 
 import "forge-std/StdInvariant.sol";
 import "forge-std/Test.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "../../script/DeployVincask.s.sol";
 import "../../script/HelperConfig.s.sol";
 import "../../src/Vincask.sol";
 import "../../src/VincaskX.sol";
 import "../../src/mocks/UsdcMock.sol";
 import "./Handler.t.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract InvariantsTest is StdInvariant, Test {
     using Strings for uint256;
@@ -42,16 +42,15 @@ contract InvariantsTest is StdInvariant, Test {
         uint256 totalSupply = vin.getTotalSupply();
         uint256 netNftsMinted = handler.nftsMinted() - handler.nftsBurned();
 
-        console.log(vin.getLatestTokenId());
-        console.log("Total supply:            ", totalSupply);
-        console.log("Net NFTs minted:         ", netNftsMinted);
-        console.log("NFTs minted:             ", handler.nftsMinted());
-        console.log("NFTs burned:             ", handler.nftsBurned());
-        console.log("NFTs redeemed:           ", handler.nftsRedeemed());
+        console.log("Total supply:                  ", totalSupply);
+        console.log("Net NFTs minted:               ", netNftsMinted);
+        console.log("NFTs minted:                   ", handler.nftsMinted());
+        console.log("NFTs burned:                   ", handler.nftsBurned());
+        console.log("NFTs redeemed:                 ", handler.nftsRedeemed());
 
-        console.log("Mint called:             ", handler.mintCalled());
-        console.log("Redeem called:           ", handler.redeemCalled());
-        console.log("Admin mint & burn called:", handler.adminMintAndBurnCalled());
+        console.log("Times mint called:             ", handler.mintCalled());
+        console.log("Times redeem called:           ", handler.redeemCalled());
+        console.log("Times admin mint & burn called:", handler.adminMintAndBurnCalled());
 
         for (uint256 i = 0; i < NUM_OF_USERS; ++i) {
             uint256 numOfNfts = handler.nftsOwnedCount(users[i]);

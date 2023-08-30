@@ -32,6 +32,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, Ownable {
     uint256 private tokenCounter;
+    uint256 private tokensBurned;
+
     uint256 private mintPrice;
     IERC20 private stableCoin;
     uint256 private totalSupply;
@@ -56,8 +58,8 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         _setDefaultRoyalty(_multiSig, _royaltyFee);
     }
 
-    modifier ableToMint(uint256 _quantity) {
-        if (tokenCounter + _quantity > totalSupply) revert Vincask__MaxSupplyExceeded();
+    modifier mintCompliance(uint256 _quantity) {
+        if ((tokenCounter - tokensBurned) + _quantity > totalSupply) revert Vincask__MaxSupplyExceeded();
         if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
         _;
     }
@@ -66,8 +68,11 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
      * @notice This function allows a customer to mint multiple NFTs in one transaction
      * @param _quantity The number of NFTs to mint
      */
-    function safeMultiMintWithStableCoin(uint256 _quantity) external ableToMint(_quantity) whenNotPaused {
+    function safeMultiMintWithStableCoin(uint256 _quantity) external mintCompliance(_quantity) whenNotPaused {
         uint256 totalPrice = _quantity * mintPrice;
+
+        bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
+        if (!success) revert Vincask__PaymentFailed();
 
         for (uint256 i = 0; i < _quantity; ++i) {
             // Token ID is incremented first so that token ID starts at 1
@@ -76,13 +81,17 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
 
             _safeMint(msg.sender, tokenId);
         }
+    }
+
+    function safeMultiMintWithCreditCard(uint256 _quantity, address _to)
+        external
+        mintCompliance(_quantity)
+        whenNotPaused
+    {
+        uint256 totalPrice = _quantity * 100e6; // 6 decimal places for USDC
 
         bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
         if (!success) revert Vincask__PaymentFailed();
-    }
-
-    function safeMultiMintWithCreditCard(uint256 _quantity, address _to) external ableToMint(_quantity) whenNotPaused {
-        uint256 totalPrice = _quantity * 25_000e6; // 6 decimal places for USDC
 
         for (uint256 i = 0; i < _quantity; ++i) {
             // Token ID is incremented first so that token ID starts at 1
@@ -91,9 +100,6 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
 
             _safeMint(_to, tokenId);
         }
-
-        bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
-        if (!success) revert Vincask__PaymentFailed();
     }
 
     /**
@@ -101,7 +107,14 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
      * Intended to be used for physical sales that do not want the NFT.
      * @param _quantity The number of NFTs to mint and burn
      */
-    function safeMultiMintAndBurnForAdmin(uint256 _quantity) external ableToMint(_quantity) onlyOwner {
+    function safeMultiMintAndBurnForAdmin(uint256 _quantity) external mintCompliance(_quantity) onlyOwner {
+        tokensBurned += _quantity;
+
+        unchecked {
+            // Underflow not possible as you can't burn more than you mint
+            totalSupply -= _quantity;
+        }
+
         for (uint256 i = 0; i < _quantity; ++i) {
             // Token ID is incremented first so that token ID starts at 1
             tokenCounter++;
@@ -109,11 +122,6 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
 
             _safeMint(msg.sender, tokenId);
             _burn(tokenId);
-        }
-
-        unchecked {
-            // Underflow not possible as you can't burn more than you mint
-            totalSupply -= _quantity;
         }
     }
 

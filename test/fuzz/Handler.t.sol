@@ -34,6 +34,7 @@ contract Handler is Test {
     modifier useUser(uint256 _userIndexSeed) {
         currentUser = users[bound(_userIndexSeed, 0, users.length - 1)];
 
+        deal(currentUser, 1 ether);
         vm.startPrank(currentUser);
         _;
         vm.stopPrank();
@@ -44,7 +45,7 @@ contract Handler is Test {
 
         _quantity = bound(_quantity, 1, 10);
 
-        if (vin.getTotalSupply() == vin.getLatestTokenId()) return;
+        if (vin.getTotalSupply() == (nftsMinted - nftsBurned)) return;
 
         if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
 
@@ -62,7 +63,7 @@ contract Handler is Test {
         for (uint256 i = 0; i < _quantity; ++i) {
             nftsOwned[currentUser].push(startingTokenId + i + 1);
         }
-        // Extra ghost variable for logging purposes
+        // Extra ghost variables for logging
         nftsOwnedCount[currentUser] += _quantity;
         nftsMinted += _quantity;
     }
@@ -70,9 +71,7 @@ contract Handler is Test {
     function redeemNft(uint256 _userIndexSeed) external useUser(_userIndexSeed) {
         redeemCalled++;
 
-        uint256 userbalance = vin.balanceOf(currentUser);
-
-        if (userbalance == 0) return;
+        if (vin.balanceOf(currentUser) == 0) return;
 
         uint256[] memory nftsToRedeem = nftsOwned[currentUser];
 
@@ -91,9 +90,9 @@ contract Handler is Test {
 
         _quantity = bound(_quantity, 1, 3);
 
-        if (vin.getTotalSupply() == vin.getLatestTokenId()) return;
+        if (vin.getTotalSupply() == (nftsMinted - nftsBurned)) return;
 
-        if (vin.getLatestTokenId() + _quantity > vin.getTotalSupply()) return;
+        if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
 
         address admin = vin.getMultiSig();
 

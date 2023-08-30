@@ -55,7 +55,7 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            stableCoin: 0xee3a254b0810FC5de2771057D97ed1DD0a6fD330,
+            stableCoin: 0xa4Eb0D6f240F6F7BA3561Fc2a118B27C4438F7ed,
             multiSig: msg.sender,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
