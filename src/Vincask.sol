@@ -88,7 +88,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         mintCompliance(_quantity)
         whenNotPaused
     {
-        uint256 totalPrice = _quantity * 100e6; // 6 decimal places for USDC
+        uint256 totalPrice = _quantity * 10e6; // 6 decimal places for USDC
 
         bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
         if (!success) revert Vincask__PaymentFailed();
