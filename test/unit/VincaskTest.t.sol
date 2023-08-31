@@ -139,6 +139,7 @@ contract VincaskTest is Test {
 
         assertEq(vin.balanceOf(USER), _quantity);
         for (uint256 i = 0; i < _quantity; ++i) {
+            // NFT token ID starts at 1
             assertEq(vin.ownerOf(i + 1), USER);
         }
         assertEq(vin.getLatestTokenId(), _quantity);
