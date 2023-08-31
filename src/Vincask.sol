@@ -190,6 +190,9 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         uint256 totalPrice = _quantity * _mintPrice;
 
         bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
+        /**
+         * @note Remove this check? It will never return false.
+         */
         if (!success) revert Vincask__PaymentFailed();
 
         for (uint256 i = 0; i < _quantity; ++i) {

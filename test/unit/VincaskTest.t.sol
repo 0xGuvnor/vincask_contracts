@@ -28,6 +28,7 @@ contract VincaskTest is Test {
 
     address public USER = makeAddr("user");
     address public USER2 = makeAddr("user2");
+    address public CROSSMINT = makeAddr("crossmint");
 
     function setUp() external {
         DeployVincask deployer = new DeployVincask();
@@ -38,6 +39,7 @@ contract VincaskTest is Test {
 
         usdc.mint(USER, 100_000e6);
         usdc.mint(USER2, 100_000e6);
+        usdc.mint(CROSSMINT, 100_000e6);
     }
 
     function test_CanMintSingleNft() external {
@@ -123,19 +125,41 @@ contract VincaskTest is Test {
         vm.stopPrank();
     }
 
-    function test_AdminMintAndBurnReducesSupply() external {
+    function test_CanMintWithCrossmint(uint256 _quantity) external {
+        _quantity = bound(_quantity, 1, vin.getTotalSupply());
+        uint256 startingMultiSigBalance = usdc.balanceOf(multiSig);
+
+        vm.startPrank(CROSSMINT);
+        /* We give unlimited approval here as Crossmint initiates the approval on their end */
+        usdc.approve(address(vin), UINT256_MAX);
+        vin.safeMultiMintWithCreditCard(_quantity, USER);
+        vm.stopPrank();
+
+        uint256 endingMultiSigBalance = usdc.balanceOf(multiSig);
+
+        assertEq(vin.balanceOf(USER), _quantity);
+        for (uint256 i = 0; i < _quantity; ++i) {
+            assertEq(vin.ownerOf(i + 1), USER);
+        }
+        assertEq(vin.getLatestTokenId(), _quantity);
+        // Mint price of $10 used for Crossmint dev environment
+        assertEq(startingMultiSigBalance + (10e6 * _quantity), endingMultiSigBalance);
+    }
+
+    function test_AdminMintAndBurnReducesSupply(uint256 _quantity) external {
         uint256 initialTokenId = vin.getLatestTokenId();
         uint256 initialTotalSupply = vin.getTotalSupply();
-        uint256 numToMint = 5;
+
+        _quantity = bound(_quantity, 1, initialTotalSupply);
 
         vm.prank(admin);
-        vin.safeMultiMintAndBurnForAdmin(numToMint);
+        vin.safeMultiMintAndBurnForAdmin(_quantity);
 
         uint256 endingTokenId = vin.getLatestTokenId();
         uint256 endingTotalSupply = vin.getTotalSupply();
 
-        assertEq(initialTokenId + numToMint, endingTokenId);
-        assertEq(initialTotalSupply - numToMint, endingTotalSupply);
+        assertEq(initialTokenId + _quantity, endingTokenId);
+        assertEq(initialTotalSupply - _quantity, endingTotalSupply);
     }
 
     modifier userMint(uint256 _quantity) {
