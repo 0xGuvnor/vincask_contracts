@@ -2,21 +2,21 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
-import "../../script/DeployVincask.s.sol";
+import "../../script/DeployVinCask.s.sol";
 import "../../script/HelperConfig.s.sol";
-import "../../src/Vincask.sol";
-import "../../src/VincaskX.sol";
-import "../../src/interface/IVincask.sol";
+import "../../src/VinCask.sol";
+import "../../src/VinCaskX.sol";
+import "../../src/interface/IVinCask.sol";
 import "../../src/mocks/UsdcMock.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract VincaskTest is Test {
+contract VinCaskTest is Test {
     using SafeMath for uint256;
     using Strings for uint256;
 
-    Vincask vin;
-    VincaskX vinX;
+    VinCask vin;
+    VinCaskX vinX;
     HelperConfig config;
     uint256 totalSupply;
     uint256 mintPrice;
@@ -31,7 +31,7 @@ contract VincaskTest is Test {
     address public CROSSMINT = makeAddr("crossmint");
 
     function setUp() external {
-        DeployVincask deployer = new DeployVincask();
+        DeployVinCask deployer = new DeployVinCask();
         (vin, vinX, config) = deployer.run();
         (totalSupply, mintPrice, usdcAddr, multiSig, royaltyFee,) = config.activeNetworkConfig();
         usdc = UsdcMock(usdcAddr);
@@ -85,7 +85,7 @@ contract VincaskTest is Test {
         vm.startPrank(USER);
         usdc.approve(address(vin), mintPrice);
 
-        vm.expectRevert(IVincask.Vincask__MustMintAtLeastOne.selector);
+        vm.expectRevert(IVinCask.Vincask__MustMintAtLeastOne.selector);
         vin.safeMultiMintWithStableCoin(0);
         vm.stopPrank();
     }
@@ -98,7 +98,7 @@ contract VincaskTest is Test {
         usdc.mint(USER, mintPrice * numToMint);
         usdc.approve(address(vin), mintPrice * numToMint);
 
-        vm.expectRevert(IVincask.Vincask__MaxSupplyExceeded.selector);
+        vm.expectRevert(IVinCask.Vincask__MaxSupplyExceeded.selector);
         vin.safeMultiMintWithStableCoin(numToMint);
         vm.stopPrank();
     }
@@ -177,7 +177,7 @@ contract VincaskTest is Test {
         tokenIdArray[0] = 1;
 
         vm.prank(USER2);
-        vm.expectRevert(IVincask.Vincask__CallerNotAuthorised.selector);
+        vm.expectRevert(IVinCask.Vincask__CallerNotAuthorised.selector);
         vin.multiRedeem(tokenIdArray);
     }
 
@@ -199,7 +199,7 @@ contract VincaskTest is Test {
         uint256[] memory tokenIdArray = new uint256[](0);
 
         vm.prank(USER);
-        vm.expectRevert(IVincask.Vincask__MustApproveAtLeastOne.selector);
+        vm.expectRevert(IVinCask.Vincask__MustApproveAtLeastOne.selector);
         vin.multiApprove(tokenIdArray);
     }
 
@@ -216,7 +216,7 @@ contract VincaskTest is Test {
         uint256 currentMintPrice = vin.getMintPrice();
 
         vm.prank(admin);
-        vm.expectRevert(IVincask.Vincask__MustSetDifferentPrice.selector);
+        vm.expectRevert(IVinCask.Vincask__MustSetDifferentPrice.selector);
         vin.setMintPrice(currentMintPrice);
     }
 
@@ -237,7 +237,7 @@ contract VincaskTest is Test {
         address currentStableCoin = vin.getStableCoin();
 
         vm.prank(admin);
-        vm.expectRevert(IVincask.Vincask__MustSetDifferentStableCoin.selector);
+        vm.expectRevert(IVinCask.Vincask__MustSetDifferentStableCoin.selector);
         vin.setStableCoin(currentStableCoin);
     }
 

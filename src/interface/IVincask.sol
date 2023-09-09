@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-interface IVincask {
-    error Vincask__MaxSupplyExceeded();
-    error Vincask__MustMintAtLeastOne();
-    error Vincask__MustApproveAtLeastOne();
-    error Vincask__PaymentFailed();
-    error Vincask__CallerNotAuthorised();
-    error Vincask__MustSetDifferentPrice();
-    error Vincask__MustSetDifferentStableCoin();
+interface IVinCask {
+    error VinCask__MaxSupplyExceeded();
+    error VinCask__MustMintAtLeastOne();
+    error VinCask__MustApproveAtLeastOne();
+    error VinCask__PaymentFailed();
+    error VinCask__CallerNotAuthorised();
+    error VinCask__MustSetDifferentPrice();
+    error VinCask__MustSetDifferentStableCoin();
+    error VinCask__RedemptionNotOpen();
+
+    event RedemptionOpened(address indexed account);
+
+    event RedemptionClosed(address indexed account);
 
     function safeMultiMintWithStableCoin(uint256 _quantity) external;
 

@@ -4,19 +4,19 @@ pragma solidity ^0.8.18;
 import "forge-std/StdInvariant.sol";
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "../../script/DeployVincask.s.sol";
+import "../../script/DeployVinCask.s.sol";
 import "../../script/HelperConfig.s.sol";
-import "../../src/Vincask.sol";
-import "../../src/VincaskX.sol";
+import "../../src/VinCask.sol";
+import "../../src/VinCaskX.sol";
 import "../../src/mocks/UsdcMock.sol";
 import "./Handler.t.sol";
 
 contract InvariantsTest is StdInvariant, Test {
     using Strings for uint256;
 
-    DeployVincask deployer;
-    Vincask vin;
-    VincaskX vinX;
+    DeployVinCask deployer;
+    VinCask vin;
+    VinCaskX vinX;
     HelperConfig config;
     address usdcAddr;
     UsdcMock usdc;
@@ -27,7 +27,7 @@ contract InvariantsTest is StdInvariant, Test {
     address[] public users;
 
     function setUp() external {
-        deployer = new DeployVincask();
+        deployer = new DeployVinCask();
         (vin, vinX, config) = deployer.run();
 
         for (uint256 i = 0; i < NUM_OF_USERS; ++i) {

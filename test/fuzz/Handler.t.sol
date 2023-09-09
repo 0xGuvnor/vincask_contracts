@@ -2,13 +2,13 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
-import "../../src/Vincask.sol";
-import "../../src/VincaskX.sol";
+import "../../src/VinCask.sol";
+import "../../src/VinCaskX.sol";
 import "../../src/mocks/UsdcMock.sol";
 
 contract Handler is Test {
-    Vincask vin;
-    VincaskX vinX;
+    VinCask vin;
+    VinCaskX vinX;
     UsdcMock usdc;
 
     // Ghost variables
@@ -23,7 +23,7 @@ contract Handler is Test {
     uint256 public redeemCalled;
     uint256 public adminMintAndBurnCalled;
 
-    constructor(Vincask _vin, VincaskX _vinX, address[] memory _users) {
+    constructor(VinCask _vin, VinCaskX _vinX, address[] memory _users) {
         vin = _vin;
         vinX = _vinX;
         users = _users;

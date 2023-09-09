@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import "./interface/IVincask.sol";
-import "./VincaskX.sol";
+import "./interface/IVinCask.sol";
+import "./VinCaskX.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Royalty.sol";
@@ -26,29 +26,30 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 */
 
 /**
- * @title Vincask NFT contract
+ * @title VinCask NFT contract
  * @author 0xGuvnor
  * @notice X
  */
-contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, Ownable {
+contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, Ownable {
     uint256 private tokenCounter;
     uint256 private tokensBurned;
 
     uint256 private mintPrice;
     IERC20 private stableCoin;
     uint256 private totalSupply;
+    bool private redemptionOpen;
 
     address private immutable MULTI_SIG;
-    VincaskX private immutable VIN_X;
+    VinCaskX private immutable VIN_X;
 
     constructor(
         uint256 _mintPrice,
         address _stableCoin,
         uint256 _totalSupply,
         address _multiSig,
-        VincaskX _VIN_X,
+        VinCaskX _VIN_X,
         uint96 _royaltyFee /* Expressed in basis points i.e. 500 = 5% */
-    ) ERC721("Vincask", "VIN") {
+    ) ERC721("VinCask", "VIN") {
         mintPrice = _mintPrice;
         stableCoin = IERC20(_stableCoin);
         totalSupply = _totalSupply;
@@ -56,11 +57,18 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         VIN_X = _VIN_X;
 
         _setDefaultRoyalty(_multiSig, _royaltyFee);
+
+        redemptionOpen = false;
     }
 
     modifier mintCompliance(uint256 _quantity) {
-        if ((tokenCounter - tokensBurned) + _quantity > totalSupply) revert Vincask__MaxSupplyExceeded();
-        if (_quantity == 0) revert Vincask__MustMintAtLeastOne();
+        if ((tokenCounter - tokensBurned) + _quantity > totalSupply) revert VinCask__MaxSupplyExceeded();
+        if (_quantity == 0) revert VinCask__MustMintAtLeastOne();
+        _;
+    }
+
+    modifier whenRedemptionIsOpen() {
+        if (!isRedemptionOpen()) revert VinCask__RedemptionNotOpen();
         _;
     }
 
@@ -105,11 +113,11 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         }
     }
 
-    function multiRedeem(uint256[] calldata _tokenIds) external whenNotPaused {
+    function multiRedeem(uint256[] calldata _tokenIds) external whenNotPaused whenRedemptionIsOpen {
         uint256 numberOfTokens = _tokenIds.length;
 
         for (uint256 i = 0; i < numberOfTokens; ++i) {
-            if (_isApprovedOrOwner(address(this), _tokenIds[i]) == false) revert Vincask__CallerNotAuthorised();
+            if (_isApprovedOrOwner(address(this), _tokenIds[i]) == false) revert VinCask__CallerNotAuthorised();
 
             uint256 tokenId = _tokenIds[i];
             transferFrom(msg.sender, MULTI_SIG, tokenId);
@@ -124,7 +132,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
      */
     function multiApprove(uint256[] calldata _tokenIds) external {
         uint256 numOfTokens = _tokenIds.length;
-        if (numOfTokens == 0) revert Vincask__MustApproveAtLeastOne();
+        if (numOfTokens == 0) revert VinCask__MustApproveAtLeastOne();
 
         for (uint256 i = 0; i < numOfTokens; ++i) {
             approve(address(this), _tokenIds[i]);
@@ -144,13 +152,13 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
     }
 
     function setMintPrice(uint256 _newMintPrice) external onlyOwner {
-        if (mintPrice == _newMintPrice) revert Vincask__MustSetDifferentPrice();
+        if (mintPrice == _newMintPrice) revert VinCask__MustSetDifferentPrice();
 
         mintPrice = _newMintPrice;
     }
 
     function setStableCoin(address _newStableCoin) external onlyOwner {
-        if (stableCoin == IERC20(_newStableCoin)) revert Vincask__MustSetDifferentStableCoin();
+        if (stableCoin == IERC20(_newStableCoin)) revert VinCask__MustSetDifferentStableCoin();
 
         stableCoin = IERC20(_newStableCoin);
     }
@@ -178,12 +186,26 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         return MULTI_SIG;
     }
 
+    function isRedemptionOpen() public view returns (bool) {
+        return redemptionOpen;
+    }
+
     function pause() external onlyOwner {
         _pause();
     }
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function openRedemption() external onlyOwner {
+        redemptionOpen = true;
+        emit RedemptionOpened(msg.sender);
+    }
+
+    function closeRedemption() external onlyOwner {
+        redemptionOpen = false;
+        emit RedemptionClosed(msg.sender);
     }
 
     function _safeMultiMint(uint256 _quantity, address _to, uint256 _mintPrice) internal {
@@ -193,7 +215,7 @@ contract Vincask is IVincask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
         /**
          * @note Remove this check? It will never return false.
          */
-        if (!success) revert Vincask__PaymentFailed();
+        if (!success) revert VinCask__PaymentFailed();
 
         for (uint256 i = 0; i < _quantity; ++i) {
             unchecked {

@@ -2,15 +2,15 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
-import "../../script/DeployVincask.s.sol";
+import "../../script/DeployVinCask.s.sol";
 import "../../script/HelperConfig.s.sol";
-import "../../src/Vincask.sol";
-import "../../src/VincaskX.sol";
+import "../../src/VinCask.sol";
+import "../../src/VinCaskX.sol";
 import "../../src/mocks/UsdcMock.sol";
 
-contract VincaskXTest is Test {
-    Vincask vin;
-    VincaskX vinX;
+contract VinCaskXTest is Test {
+    VinCask vin;
+    VinCaskX vinX;
     HelperConfig config;
     uint256 mintPrice;
     address usdcAddr;
@@ -19,7 +19,7 @@ contract VincaskXTest is Test {
     address public USER = makeAddr("user");
 
     function setUp() external {
-        DeployVincask deployer = new DeployVincask();
+        DeployVinCask deployer = new DeployVinCask();
         (vin, vinX, config) = deployer.run();
         (, mintPrice, usdcAddr,,,) = config.activeNetworkConfig();
         usdc = UsdcMock(usdcAddr);

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Script.sol";
-import "../src/Vincask.sol";
-import "../src/VincaskX.sol";
+import "../src/VinCask.sol";
+import "../src/VinCaskX.sol";
 import "./HelperConfig.s.sol";
 
-contract DeployVincask is Script {
-    function run() external returns (Vincask, VincaskX, HelperConfig) {
+contract DeployVinCask is Script {
+    function run() external returns (VinCask, VinCaskX, HelperConfig) {
         HelperConfig config = new HelperConfig();
         (
             uint256 totalSupply,
@@ -19,8 +19,8 @@ contract DeployVincask is Script {
         ) = config.activeNetworkConfig();
 
         vm.startBroadcast(deployerKey);
-        VincaskX vinX = new VincaskX();
-        Vincask vin = new Vincask(mintPrice, stableCoin, totalSupply, multiSig, vinX, royaltyFee);
+        VinCaskX vinX = new VinCaskX();
+        VinCask vin = new VinCask(mintPrice, stableCoin, totalSupply, multiSig, vinX, royaltyFee);
 
         // vin.pause();
         vin.transferOwnership(multiSig);
