@@ -28,6 +28,9 @@ contract VinCaskXTest is Test {
     }
 
     function test_VinXTokenUriReturnsCorrectString() external {
+        vm.prank(vin.owner());
+        vin.openRedemption();
+
         // Simulating a user minting and redeeming an NFT
         vm.startPrank(USER);
         usdc.approve(address(vin), mintPrice);

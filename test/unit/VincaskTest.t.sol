@@ -85,7 +85,7 @@ contract VinCaskTest is Test {
         vm.startPrank(USER);
         usdc.approve(address(vin), mintPrice);
 
-        vm.expectRevert(IVinCask.Vincask__MustMintAtLeastOne.selector);
+        vm.expectRevert(IVinCask.VinCask__MustMintAtLeastOne.selector);
         vin.safeMultiMintWithStableCoin(0);
         vm.stopPrank();
     }
@@ -98,7 +98,7 @@ contract VinCaskTest is Test {
         usdc.mint(USER, mintPrice * numToMint);
         usdc.approve(address(vin), mintPrice * numToMint);
 
-        vm.expectRevert(IVinCask.Vincask__MaxSupplyExceeded.selector);
+        vm.expectRevert(IVinCask.VinCask__MaxSupplyExceeded.selector);
         vin.safeMultiMintWithStableCoin(numToMint);
         vm.stopPrank();
     }
@@ -172,16 +172,45 @@ contract VinCaskTest is Test {
         _;
     }
 
+    function test_RedemptionIsClosedByDefault() external {
+        assertEq(vin.isRedemptionOpen(), false);
+    }
+
+    function test_OnlyAdminCanOpenOrCloseRedemption() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(USER);
+        vin.openRedemption();
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(USER);
+        vin.closeRedemption();
+
+        vm.startPrank(admin);
+        assertEq(vin.isRedemptionOpen(), false);
+
+        vin.openRedemption();
+        assertEq(vin.isRedemptionOpen(), true);
+
+        vin.closeRedemption();
+        assertEq(vin.isRedemptionOpen(), false);
+    }
+
     function test_CanOnlyRedeemYourOwnNfts() external userMint(1) {
+        vm.prank(admin);
+        vin.openRedemption();
+
         uint256[] memory tokenIdArray = new uint256[](1);
         tokenIdArray[0] = 1;
 
         vm.prank(USER2);
-        vm.expectRevert(IVinCask.Vincask__CallerNotAuthorised.selector);
+        vm.expectRevert(IVinCask.VinCask__CallerNotAuthorised.selector);
         vin.multiRedeem(tokenIdArray);
     }
 
     function test_RedeemedNftHasSameTokenId() external userMint(1) {
+        vm.prank(admin);
+        vin.openRedemption();
+
         uint256[] memory tokenIdArray = new uint256[](1);
         tokenIdArray[0] = 1;
 
@@ -199,7 +228,7 @@ contract VinCaskTest is Test {
         uint256[] memory tokenIdArray = new uint256[](0);
 
         vm.prank(USER);
-        vm.expectRevert(IVinCask.Vincask__MustApproveAtLeastOne.selector);
+        vm.expectRevert(IVinCask.VinCask__MustApproveAtLeastOne.selector);
         vin.multiApprove(tokenIdArray);
     }
 
@@ -216,7 +245,7 @@ contract VinCaskTest is Test {
         uint256 currentMintPrice = vin.getMintPrice();
 
         vm.prank(admin);
-        vm.expectRevert(IVinCask.Vincask__MustSetDifferentPrice.selector);
+        vm.expectRevert(IVinCask.VinCask__MustSetDifferentPrice.selector);
         vin.setMintPrice(currentMintPrice);
     }
 
@@ -237,7 +266,7 @@ contract VinCaskTest is Test {
         address currentStableCoin = vin.getStableCoin();
 
         vm.prank(admin);
-        vm.expectRevert(IVinCask.Vincask__MustSetDifferentStableCoin.selector);
+        vm.expectRevert(IVinCask.VinCask__MustSetDifferentStableCoin.selector);
         vin.setStableCoin(currentStableCoin);
     }
 
@@ -284,6 +313,9 @@ contract VinCaskTest is Test {
     }
 
     function test_OnlyOwnerCanBurn() external userMint(1) {
+        vm.prank(admin);
+        vin.openRedemption();
+
         vm.startPrank(USER);
         vm.expectRevert("Ownable: caller is not the owner");
         vin.burn(1);
@@ -303,6 +335,9 @@ contract VinCaskTest is Test {
     }
 
     function test_OnlyOwnerCanMultiBurn() external userMint(4) {
+        vm.prank(admin);
+        vin.openRedemption();
+
         uint256[] memory tokenIdArray = new uint256[](4);
         for (uint256 i = 0; i < 4; ++i) {
             tokenIdArray[i] = i + 1;

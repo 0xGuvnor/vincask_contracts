@@ -29,6 +29,9 @@ contract Handler is Test {
         users = _users;
 
         usdc = UsdcMock(vin.getStableCoin());
+
+        vm.prank(vin.owner());
+        vin.openRedemption();
     }
 
     modifier useUser(uint256 _userIndexSeed) {
