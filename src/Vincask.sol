@@ -26,9 +26,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 */
 
 /**
- * @title VinCask NFT contract
+ * @title VinCask NFT
  * @author 0xGuvnor
- * @notice X
+ * @dev This contract allows users to mint NFTs using either stablecoin (USDC at time of deployment) or
+ *      fiat via credit card (using Crossmint).
+ *      Each NFT represents eligibility to redeem a bottle of VinCask whisky.
+ *      For redemptions to be eligible, they must be initiated through the website UI as users have to complete a
+ *      form with their redemption details.
  */
 contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, Ownable {
     uint256 private tokenCounter;
