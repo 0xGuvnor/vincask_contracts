@@ -31,6 +31,10 @@ interface IVinCask {
 
     function setStableCoin(address _newStableCoin) external;
 
+    function openRedemption() external;
+
+    function closeRedemption() external;
+
     function getTotalSupply() external view returns (uint256);
 
     function getLatestTokenId() external view returns (uint256);
@@ -40,4 +44,6 @@ interface IVinCask {
     function getStableCoin() external view returns (address);
 
     function getMultiSig() external view returns (address);
+
+    function isRedemptionOpen() external view returns (bool);
 }
