@@ -15,6 +15,9 @@ contract VinCaskTest is Test {
     using SafeMath for uint256;
     using Strings for uint256;
 
+    event RedemptionOpened(address indexed account);
+    event RedemptionClosed(address indexed account);
+
     VinCask vin;
     VinCaskX vinX;
     HelperConfig config;
@@ -37,6 +40,7 @@ contract VinCaskTest is Test {
         usdc = UsdcMock(usdcAddr);
         admin = vin.owner();
 
+        // We start off our test users with 100K of USDC
         usdc.mint(USER, 100_000e6);
         usdc.mint(USER2, 100_000e6);
         usdc.mint(CROSSMINT, 100_000e6);
@@ -46,7 +50,7 @@ contract VinCaskTest is Test {
         uint256 startingUsdcBalance = usdc.balanceOf(USER);
 
         vm.startPrank(USER);
-        usdc.approve(address(vin), mintPrice);
+        usdc.approve(address(vin), mintPrice * 1);
         vin.safeMultiMintWithStableCoin(1);
         vm.stopPrank();
 
@@ -61,6 +65,7 @@ contract VinCaskTest is Test {
 
     function test_CanMintMultipleNfts(uint256 _quantity) external {
         _quantity = bound(_quantity, 2, totalSupply);
+        // We mint additional USDC to be able to afford the NFT minting
         usdc.mint(USER, _quantity * mintPrice);
 
         uint256 startingUsdcBalance = usdc.balanceOf(USER);
@@ -91,7 +96,7 @@ contract VinCaskTest is Test {
     }
 
     function test_CannotMintMoreThanTotalSupply() external {
-        // We use the default total supply here instead of calling getTotalSupply as no NFTs have been burned, so it would return the same value
+        // We use the default total supply here instead of calling getTotalSupply() as no NFTs have been burned, so it would return the same value
         uint256 numToMint = totalSupply + 1;
 
         vm.startPrank(USER);
@@ -110,9 +115,12 @@ contract VinCaskTest is Test {
 
         vin.safeMultiMintWithStableCoin(totalSupply);
         vm.stopPrank();
+
+        assertEq(vin.getLatestTokenId(), vin.getTotalSupply());
+        assertEq(vin.balanceOf(USER), vin.getTotalSupply());
     }
 
-    function test_RevertsIfCantAffordToMint() external {
+    function test_RevertsIfCannotAffordToMint() external {
         uint256 userBalance = usdc.balanceOf(USER);
         uint256 affordToMint = userBalance.div(mintPrice);
         uint256 toMint = affordToMint + 1;
@@ -126,24 +134,24 @@ contract VinCaskTest is Test {
     }
 
     function test_CanMintWithCrossmint(uint256 _quantity) external {
-        _quantity = bound(_quantity, 1, vin.getTotalSupply());
+        _quantity = bound(_quantity, 1, totalSupply);
         uint256 startingMultiSigBalance = usdc.balanceOf(multiSig);
 
         vm.startPrank(CROSSMINT);
         /* We give unlimited approval here as Crossmint initiates the approval on their end */
         usdc.approve(address(vin), UINT256_MAX);
-        vin.safeMultiMintWithCreditCard(_quantity, USER);
+        vin.safeMultiMintWithCreditCard(_quantity, CROSSMINT);
         vm.stopPrank();
 
         uint256 endingMultiSigBalance = usdc.balanceOf(multiSig);
 
-        assertEq(vin.balanceOf(USER), _quantity);
+        assertEq(vin.balanceOf(CROSSMINT), _quantity);
         for (uint256 i = 0; i < _quantity; ++i) {
             // NFT token ID starts at 1
-            assertEq(vin.ownerOf(i + 1), USER);
+            assertEq(vin.ownerOf(i + 1), CROSSMINT);
         }
         assertEq(vin.getLatestTokenId(), _quantity);
-        // Mint price of $10 used for Crossmint dev environment
+        // Mint price of 10 USDC used for Crossmint dev environment
         assertEq(startingMultiSigBalance + (10e6 * _quantity), endingMultiSigBalance);
     }
 
@@ -177,51 +185,66 @@ contract VinCaskTest is Test {
     }
 
     function test_OnlyAdminCanOpenOrCloseRedemption() external {
+        vm.startPrank(USER);
         vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(USER);
         vin.openRedemption();
 
         vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(USER);
         vin.closeRedemption();
+        vm.stopPrank();
 
         vm.startPrank(admin);
         assertEq(vin.isRedemptionOpen(), false);
 
+        vm.expectEmit(true, false, false, false, address(vin));
+        emit RedemptionOpened(admin);
         vin.openRedemption();
         assertEq(vin.isRedemptionOpen(), true);
 
+        vm.expectEmit(true, false, false, false, address(vin));
+        emit RedemptionClosed(admin);
         vin.closeRedemption();
         assertEq(vin.isRedemptionOpen(), false);
+        vm.stopPrank();
     }
 
-    function test_CanOnlyRedeemYourOwnNfts() external userMint(1) {
+    function test_CanOnlyRedeemNftsYouOwn() external userMint(1) {
         vm.prank(admin);
         vin.openRedemption();
 
         uint256[] memory tokenIdArray = new uint256[](1);
         tokenIdArray[0] = 1;
 
-        vm.prank(USER2);
+        // NFTs minted in userMint modifier belong to USER, so we use USER2 to test the revert
+        vm.startPrank(USER2);
+        vm.expectRevert("ERC721: approve caller is not token owner or approved for all");
+        vin.multiApprove(tokenIdArray);
+
         vm.expectRevert(IVinCask.VinCask__CallerNotAuthorised.selector);
         vin.multiRedeem(tokenIdArray);
+        vm.stopPrank();
     }
 
-    function test_RedeemedNftHasSameTokenId() external userMint(1) {
+    function test_RedeemedNftHasSameTokenId() external userMint(3) {
         vm.prank(admin);
         vin.openRedemption();
 
+        // Users who redeem a VIN NFT will receive a VIN-X NFT in return
+
+        // User has 3 NFTs, but we redeem only token ID 2 to prove
+        // that newly minted VIN-X token IDs are based on which VIN
+        // token ID was redeemed from, instead of incremeting sequentially.
         uint256[] memory tokenIdArray = new uint256[](1);
-        tokenIdArray[0] = 1;
+        tokenIdArray[0] = 2;
 
         vm.startPrank(USER);
         vin.multiApprove(tokenIdArray);
         vin.multiRedeem(tokenIdArray);
         vm.stopPrank();
 
-        assertEq(vinX.ownerOf(1), USER);
-        assertNotEq(vin.ownerOf(1), USER);
-        assertEq(vin.ownerOf(1), multiSig);
+        assertEq(vinX.ownerOf(2), USER);
+        assertNotEq(vin.ownerOf(2), USER);
+        assertEq(vin.ownerOf(2), multiSig);
     }
 
     function test_CannotApproveZero() external userMint(1) {
@@ -251,7 +274,7 @@ contract VinCaskTest is Test {
 
     function test_AdminCanSetNewMintPrice() external {
         uint256 startingMintPrice = vin.getMintPrice();
-        uint256 newMintPrice = 30_000e6;
+        uint256 newMintPrice = startingMintPrice * 2;
 
         vm.prank(admin);
         vin.setMintPrice(newMintPrice);
@@ -272,6 +295,7 @@ contract VinCaskTest is Test {
 
     function test_AdminCanSetNewStableCoin() external {
         address startingStableCoin = vin.getStableCoin();
+        // Arbitrary address
         address newStableCoin = address(10);
 
         vm.prank(admin);
@@ -312,7 +336,7 @@ contract VinCaskTest is Test {
         assertEq(vin.balanceOf(USER), 1);
     }
 
-    function test_OnlyOwnerCanBurn() external userMint(1) {
+    function test_OnlyOwnerCanCallBurn() external userMint(1) {
         vm.prank(admin);
         vin.openRedemption();
 
@@ -327,6 +351,7 @@ contract VinCaskTest is Test {
         vin.multiRedeem(tokenIdArray);
         vm.stopPrank();
 
+        // NFT gets transferred to MultiSig (admin) wallet when redeemed
         vm.prank(admin);
         vin.burn(1);
 
@@ -334,7 +359,7 @@ contract VinCaskTest is Test {
         vin.ownerOf(1);
     }
 
-    function test_OnlyOwnerCanMultiBurn() external userMint(4) {
+    function test_OnlyOwnerCanCallMultiBurn() external userMint(4) {
         vm.prank(admin);
         vin.openRedemption();
 

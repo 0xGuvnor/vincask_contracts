@@ -31,6 +31,7 @@ contract InvariantsTest is StdInvariant, Test {
         (vin, vinX, config) = deployer.run();
 
         for (uint256 i = 0; i < NUM_OF_USERS; ++i) {
+            // create random test users
             users.push(makeAddr(i.toString()));
         }
 

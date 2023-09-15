@@ -18,7 +18,7 @@ contract Handler is Test {
     uint256 public nftsRedeemed;
     uint256 public nftsBurned;
     mapping(address owner => uint256[] tokenIds) public nftsOwned;
-    mapping(address owner => uint256 tokenCounts) public nftsOwnedCount;
+    mapping(address owner => uint256 tokenCount) public nftsOwnedCount;
     uint256 public mintCalled;
     uint256 public redeemCalled;
     uint256 public adminMintAndBurnCalled;
@@ -46,10 +46,14 @@ contract Handler is Test {
     function mintNft(uint256 _quantity, uint256 _userIndexSeed) external useUser(_userIndexSeed) {
         mintCalled++;
 
+        // We set a limit on the limit to mint per tx so that more function
+        // calls can happen before total supply is reached.
         _quantity = bound(_quantity, 1, 10);
 
+        // All NFTs have been minted
         if (vin.getTotalSupply() == (nftsMinted - nftsBurned)) return;
 
+        // NFT(s) to mint will exceed total supply
         if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
 
         uint256 mintPrice = vin.getMintPrice();
@@ -64,8 +68,10 @@ contract Handler is Test {
         // We add the token IDs of the NFTs minted to an array so that
         // we can pass it into the redeem function below
         for (uint256 i = 0; i < _quantity; ++i) {
+            // i + 1 as token IDs start at 1
             nftsOwned[currentUser].push(startingTokenId + i + 1);
         }
+
         // Extra ghost variables for logging
         nftsOwnedCount[currentUser] += _quantity;
         nftsMinted += _quantity;
@@ -74,6 +80,7 @@ contract Handler is Test {
     function redeemNft(uint256 _userIndexSeed) external useUser(_userIndexSeed) {
         redeemCalled++;
 
+        // Nothing to redeem
         if (vin.balanceOf(currentUser) == 0) return;
 
         uint256[] memory nftsToRedeem = nftsOwned[currentUser];

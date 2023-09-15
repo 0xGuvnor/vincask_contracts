@@ -198,6 +198,8 @@ contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
 
     /**
      * @dev Setter function to change the stablecoin used for payment.
+     * Relies on admin setting a proper stablecoin address, as there are
+     * no checks to make sure the address is a contract and ERC20 compliant.
      * @param _newStableCoin The new stablecoin address to be used.
      */
     function setStableCoin(address _newStableCoin) external onlyOwner {
@@ -308,6 +310,7 @@ contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
      * @dev See {ERC721-_baseURI}.
      */
     function _baseURI() internal pure override returns (string memory) {
+        // Placeholder URI
         return "ipfs://abc/";
     }
 

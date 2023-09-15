@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "../../script/DeployVinCask.s.sol";
 import "../../script/HelperConfig.s.sol";
 import "../../src/VinCask.sol";
@@ -9,6 +10,8 @@ import "../../src/VinCaskX.sol";
 import "../../src/mocks/UsdcMock.sol";
 
 contract VinCaskXTest is Test {
+    using Strings for uint256;
+
     VinCask vin;
     VinCaskX vinX;
     HelperConfig config;
@@ -38,10 +41,13 @@ contract VinCaskXTest is Test {
 
         uint256[] memory tokenIdArray = new uint256[](1);
         tokenIdArray[0] = 1;
+
         vin.multiApprove(tokenIdArray);
         vin.multiRedeem(tokenIdArray);
         vm.stopPrank();
 
-        assertEq(abi.encodePacked(vinX.tokenURI(1)), abi.encodePacked("ipfs://def/1"));
+        uint256 tokenId = vin.getLatestTokenId();
+
+        assertEq(abi.encodePacked(vinX.tokenURI(1)), abi.encodePacked("ipfs://def/", tokenId.toString()));
     }
 }
