@@ -47,20 +47,22 @@ contract VinCaskTest is Test {
     }
 
     function test_CanMintSingleNft() external {
-        uint256 startingUsdcBalance = usdc.balanceOf(USER);
+        uint256 startingUserBalance = usdc.balanceOf(USER);
+        uint256 startingMultisigBalance = usdc.balanceOf(multiSig);
 
         vm.startPrank(USER);
         usdc.approve(address(vin), mintPrice * 1);
         vin.safeMultiMintWithStableCoin(1);
         vm.stopPrank();
 
-        uint256 endingUsdcBalance = usdc.balanceOf(USER);
+        uint256 endingUserBalance = usdc.balanceOf(USER);
+        uint256 endingMultisigBalance = usdc.balanceOf(multiSig);
 
         assertEq(vin.balanceOf(USER), 1);
         assertEq(vin.ownerOf(1), USER);
         assertEq(vin.getLatestTokenId(), 1);
-        assertEq(startingUsdcBalance, endingUsdcBalance + mintPrice);
-        assertEq(usdc.balanceOf(vin.getMultiSig()), mintPrice);
+        assertEq(startingUserBalance, endingUserBalance + mintPrice);
+        assertEq(startingMultisigBalance + mintPrice, endingMultisigBalance);
     }
 
     function test_CanMintMultipleNfts(uint256 _quantity) external {
@@ -68,22 +70,24 @@ contract VinCaskTest is Test {
         // We mint additional USDC to be able to afford the NFT minting
         usdc.mint(USER, _quantity * mintPrice);
 
-        uint256 startingUsdcBalance = usdc.balanceOf(USER);
+        uint256 startingUserBalance = usdc.balanceOf(USER);
+        uint256 startingMultisigBalance = usdc.balanceOf(multiSig);
 
         vm.startPrank(USER);
         usdc.approve(address(vin), mintPrice * _quantity);
         vin.safeMultiMintWithStableCoin(_quantity);
         vm.stopPrank();
 
-        uint256 endingUsdcBalance = usdc.balanceOf(USER);
+        uint256 endingUserBalance = usdc.balanceOf(USER);
+        uint256 endingMultisigBalance = usdc.balanceOf(multiSig);
 
         for (uint256 i = 1; i <= _quantity; ++i) {
             assertEq(vin.ownerOf(i), USER);
         }
         assertEq(vin.balanceOf(USER), _quantity);
         assertEq(vin.getLatestTokenId(), _quantity);
-        assertEq(startingUsdcBalance, endingUsdcBalance + (mintPrice * _quantity));
-        assertEq(usdc.balanceOf(multiSig), mintPrice * _quantity);
+        assertEq(startingUserBalance, endingUserBalance + (mintPrice * _quantity));
+        assertEq(startingMultisigBalance + (mintPrice * _quantity), endingMultisigBalance);
     }
 
     function test_RevertsIfNothingToMint() external {
