@@ -6,7 +6,6 @@ import "./VinCaskX.sol";
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Royalty.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -33,13 +32,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *
  *      Each NFT entitles its owner to redeem it for a bottle of VinCask whisky at a later date.
  *
- *      When a VinCask NFT is redeemed, the NFT will be transferred to the VinCask MultiSig, and the user
- *      will receive a VinCask-X NFT in its place for commemorative purposes and as proof that the NFT has been redeemed.
+ *      When a VinCask NFT is redeemed, the NFT will be burned, and the user will receive a VinCask-X NFT
+ *       in its place for commemorative purposes and as proof that the NFT has been redeemed.
  *
  *      For redemptions to be eligible, they MUST be initiated through the website UI as users have to complete a
  *      form with their redemption details.
  */
-contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, Ownable {
+contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     uint256 private tokenCounter;
     uint256 private tokensBurned;
 
@@ -111,8 +110,8 @@ contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
     }
 
     /**
-     * @notice Allows the admin to mint and burn NFTs at no cost.
-     * Intended to be used for physical sales that do not want the NFT.
+     * @notice Allows the admin to mint and burn NFTs at no cost. Intended to be used for
+     *  physical sales where the customer does not want the NFT.
      * @param _quantity The number of NFTs to mint and burn.
      */
     function safeMultiMintAndBurnForAdmin(uint256 _quantity) external mintCompliance(_quantity) onlyOwner {
@@ -136,24 +135,25 @@ contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
     }
 
     /**
-     * @dev When redemption is open, allows the user to choose which of their NFTs to redeem.
+     * @dev When redemption is open, allows the user to choose which of their NFTs to redeem. Redeemed NFTs
+     * are then burned and the user is minted a corresponding VIN-X NFT.
      * @param _tokenIds An array of token IDs that are owned by the caller.
      */
     function multiRedeem(uint256[] calldata _tokenIds) external whenNotPaused whenRedemptionIsOpen {
         uint256 numberOfTokens = _tokenIds.length;
 
         for (uint256 i = 0; i < numberOfTokens; ++i) {
-            if (_isApprovedOrOwner(address(this), _tokenIds[i]) == false) revert VinCask__CallerNotAuthorised();
+            if (_isApprovedOrOwner(msg.sender, _tokenIds[i]) == false) revert VinCask__CallerNotAuthorised();
 
             uint256 tokenId = _tokenIds[i];
-            transferFrom(msg.sender, MULTI_SIG, tokenId);
+            _burn(tokenId);
             VIN_X.safeMint(msg.sender, tokenId);
         }
     }
 
     /**
      * @dev Using this function to set approvals for individual NFTs instead of setApprovalForAll
-     * to avoid scaring users with the MetaMask warning.
+     * to avoid alarming users with the MetaMask warning.
      * @param _tokenIds Array of token IDs to approve
      */
     function multiApprove(uint256[] calldata _tokenIds) external {
@@ -162,27 +162,6 @@ contract VinCask is IVinCask, ERC721, ERC721Royalty, ERC721Burnable, Pausable, O
 
         for (uint256 i = 0; i < numOfTokens; ++i) {
             approve(address(this), _tokenIds[i]);
-        }
-    }
-
-    /**
-     * @dev To be used by the admin to burn NFTs that have been redeemed
-     * and physical whisky has been sent out to customers.
-     * @param _tokenId The token ID of the NFT to burn.
-     */
-    function burn(uint256 _tokenId) public override onlyOwner {
-        super.burn(_tokenId);
-    }
-
-    /**
-     * @dev To be used instead of burn() if there is more than 1 NFT to burn.
-     * @param _tokenIds Array of token IDs to burn.
-     */
-    function multiBurn(uint256[] calldata _tokenIds) external onlyOwner {
-        uint256 numOfTokens = _tokenIds.length;
-
-        for (uint256 i = 0; i < numOfTokens; ++i) {
-            burn(_tokenIds[i]);
         }
     }
 

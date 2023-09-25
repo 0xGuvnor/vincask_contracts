@@ -40,6 +40,11 @@ contract VinCaskTest is Test {
         usdc = UsdcMock(usdcAddr);
         admin = vin.owner();
 
+        if (vin.paused()) {
+            vm.prank(admin);
+            vin.unpause();
+        }
+
         // We start off our test users with 100K of USDC
         usdc.mint(USER, 100_000e6);
         usdc.mint(USER2, 100_000e6);
@@ -221,7 +226,7 @@ contract VinCaskTest is Test {
         uint256[] memory tokenIdArray = new uint256[](1);
         tokenIdArray[0] = 1;
 
-        // NFTs minted in userMint modifier belong to USER, so we use USER2 to test the revert
+        // NFTs minted in userMint modifier belong to USER, so we use USER2 to test as another user
         vm.startPrank(USER2);
         vm.expectRevert("ERC721: approve caller is not token owner or approved for all");
         vin.multiApprove(tokenIdArray);
@@ -231,17 +236,18 @@ contract VinCaskTest is Test {
         vm.stopPrank();
     }
 
-    function test_RedeemedNftHasSameTokenId() external userMint(3) {
+    function test_RedeemedNftHasSameTokenId() external userMint(4) {
         vm.prank(admin);
         vin.openRedemption();
 
         // Users who redeem a VIN NFT will receive a VIN-X NFT in return
 
-        // User has 3 NFTs, but we redeem only token ID 2 to prove
+        // User has 4 NFTs, but we redeem only token IDs 2 & 4 to prove
         // that newly minted VIN-X token IDs are based on which VIN
-        // token ID was redeemed from, instead of incremeting sequentially.
-        uint256[] memory tokenIdArray = new uint256[](1);
+        // token ID was redeemed from, instead of incrementing sequentially.
+        uint256[] memory tokenIdArray = new uint256[](2);
         tokenIdArray[0] = 2;
+        tokenIdArray[1] = 4;
 
         vm.startPrank(USER);
         vin.multiApprove(tokenIdArray);
@@ -249,8 +255,17 @@ contract VinCaskTest is Test {
         vm.stopPrank();
 
         assertEq(vinX.ownerOf(2), USER);
-        assertNotEq(vin.ownerOf(2), USER);
-        assertEq(vin.ownerOf(2), multiSig);
+        assertEq(vinX.ownerOf(4), USER);
+
+        vm.expectRevert("ERC721: invalid token ID"); // VIN #2 NFT has been successfully burned
+        vin.ownerOf(2);
+        vm.expectRevert("ERC721: invalid token ID"); // VIN #4 NFT has been successfully burned
+        vin.ownerOf(4);
+
+        vm.expectRevert("ERC721: invalid token ID"); // Check that VIN-X token ID 1 has not been minted
+        vinX.ownerOf(1);
+        vm.expectRevert("ERC721: invalid token ID"); // Check that VIN-X token ID 3 has not been minted
+        vinX.ownerOf(3);
     }
 
     function test_CannotApproveZero() external userMint(1) {
@@ -340,54 +355,5 @@ contract VinCaskTest is Test {
 
         assertEq(vin.ownerOf(1), USER);
         assertEq(vin.balanceOf(USER), 1);
-    }
-
-    function test_OnlyOwnerCanCallBurn() external userMint(1) {
-        vm.prank(admin);
-        vin.openRedemption();
-
-        vm.startPrank(USER);
-        vm.expectRevert("Ownable: caller is not the owner");
-        vin.burn(1);
-
-        uint256[] memory tokenIdArray = new uint256[](1);
-        tokenIdArray[0] = 1;
-
-        vin.multiApprove(tokenIdArray);
-        vin.multiRedeem(tokenIdArray);
-        vm.stopPrank();
-
-        // NFT gets transferred to MultiSig (admin) wallet when redeemed
-        vm.prank(admin);
-        vin.burn(1);
-
-        vm.expectRevert("ERC721: invalid token ID");
-        vin.ownerOf(1);
-    }
-
-    function test_OnlyOwnerCanCallMultiBurn() external userMint(4) {
-        vm.prank(admin);
-        vin.openRedemption();
-
-        uint256[] memory tokenIdArray = new uint256[](4);
-        for (uint256 i = 0; i < 4; ++i) {
-            tokenIdArray[i] = i + 1;
-        }
-
-        vm.startPrank(USER);
-        vm.expectRevert("Ownable: caller is not the owner");
-        vin.multiBurn(tokenIdArray);
-
-        vin.multiApprove(tokenIdArray);
-        vin.multiRedeem(tokenIdArray);
-        vm.stopPrank();
-
-        vm.prank(admin);
-        vin.multiBurn(tokenIdArray);
-
-        for (uint256 i = 0; i < 4; ++i) {
-            vm.expectRevert("ERC721: invalid token ID");
-            vin.ownerOf(i + 1);
-        }
     }
 }

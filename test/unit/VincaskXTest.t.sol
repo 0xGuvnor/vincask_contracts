@@ -27,6 +27,11 @@ contract VinCaskXTest is Test {
         (, mintPrice, usdcAddr,,,) = config.activeNetworkConfig();
         usdc = UsdcMock(usdcAddr);
 
+        if (vin.paused()) {
+            vm.prank(vin.owner());
+            vin.unpause();
+        }
+
         usdc.mint(USER, 100_000e6);
     }
 

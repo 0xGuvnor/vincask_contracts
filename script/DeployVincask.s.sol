@@ -22,7 +22,7 @@ contract DeployVinCask is Script {
         VinCaskX vinX = new VinCaskX();
         VinCask vin = new VinCask(mintPrice, stableCoin, totalSupply, multiSig, vinX, royaltyFee);
 
-        // vin.pause();
+        vin.pause(); // Admin is to unpause the contract when minting is ready to go live
         vin.transferOwnership(multiSig);
         vinX.transferOwnership(address(vin));
         vm.stopBroadcast();

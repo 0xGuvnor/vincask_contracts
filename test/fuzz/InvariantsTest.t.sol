@@ -42,6 +42,7 @@ contract InvariantsTest is StdInvariant, Test {
     function invariant_SumOfAllMintsIsLessThanOrEqualToTotalSupply() external {
         uint256 totalSupply = vin.getTotalSupply();
         uint256 netNftsMinted = handler.nftsMinted() - handler.nftsBurned();
+        uint256 vinXMinted;
 
         console.log("Total supply:                  ", totalSupply);
         console.log("Net NFTs minted:               ", netNftsMinted);
@@ -54,10 +55,14 @@ contract InvariantsTest is StdInvariant, Test {
         console.log("Times admin mint & burn called:", handler.adminMintAndBurnCalled());
 
         for (uint256 i = 0; i < NUM_OF_USERS; ++i) {
-            uint256 numOfNfts = handler.nftsOwnedCount(users[i]);
-            console.log("User:", users[i], "NFT balance:", numOfNfts);
+            address user = users[i];
+
+            uint256 numOfNfts = handler.nftsOwnedCount(user);
+            vinXMinted += vinX.balanceOf(user);
+            console.log("User:", user, "NFT balance:", numOfNfts);
         }
 
+        assertEq(handler.nftsRedeemed(), vinXMinted);
         assertLe(netNftsMinted, totalSupply);
     }
 }

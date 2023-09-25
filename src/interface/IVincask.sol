@@ -25,8 +25,6 @@ interface IVinCask {
 
     function multiApprove(uint256[] calldata _tokenIds) external;
 
-    function multiBurn(uint256[] calldata _tokenIds) external;
-
     function setMintPrice(uint256 _newMintPrice) external;
 
     function setStableCoin(address _newStableCoin) external;

@@ -30,8 +30,12 @@ contract Handler is Test {
 
         usdc = UsdcMock(vin.getStableCoin());
 
-        vm.prank(vin.owner());
+        vm.startPrank(vin.owner());
+        if (vin.paused()) {
+            vin.unpause();
+        }
         vin.openRedemption();
+        vm.stopPrank();
     }
 
     modifier useUser(uint256 _userIndexSeed) {
