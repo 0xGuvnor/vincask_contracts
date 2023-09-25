@@ -63,6 +63,8 @@ contract VinCaskTest is Test {
         assertEq(vin.getLatestTokenId(), 1);
         assertEq(startingUserBalance, endingUserBalance + mintPrice);
         assertEq(startingMultisigBalance + mintPrice, endingMultisigBalance);
+
+        assertEq(multiSig, vin.getMultiSig()); // Calling getMultiSig() here to get it included in test coverage results
     }
 
     function test_CanMintMultipleNfts(uint256 _quantity) external {
@@ -112,7 +114,7 @@ contract VinCaskTest is Test {
         vm.stopPrank();
     }
 
-    function test__CanMintUpToTotalSupply() external {
+    function test_CanMintUpToTotalSupply() external {
         vm.startPrank(USER);
         usdc.mint(USER, mintPrice * totalSupply);
         usdc.approve(address(vin), mintPrice * totalSupply);
