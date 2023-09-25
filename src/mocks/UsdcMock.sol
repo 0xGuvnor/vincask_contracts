@@ -14,6 +14,14 @@ contract UsdcMock is ERC20 {
         _burn(account, amount);
     }
 
+    /**
+     * @dev Foundry tests were throwing an error for this function when testing in Sepolia.
+     * Overriding this function fixes the problem.
+     */
+    function approve(address _spender, uint256 _amount) public override returns (bool) {
+        return super.approve(_spender, _amount);
+    }
+
     function decimals() public pure override returns (uint8) {
         return 6;
     }
