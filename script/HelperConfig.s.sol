@@ -44,7 +44,7 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            stableCoin: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
+            stableCoin: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, // USDC address
             multiSig: MULTI_SIG,
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
@@ -55,8 +55,8 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            stableCoin: 0xa4Eb0D6f240F6F7BA3561Fc2a118B27C4438F7ed,
-            multiSig: 0xF303Ab4FBD1182ACE7B31E99eCd6A3e8Dc525B7E, /* Deployer testing EOA wallet */
+            stableCoin: 0xa4Eb0D6f240F6F7BA3561Fc2a118B27C4438F7ed, // Deployed UsdcMock from src/mocks/UsdcMock.sol
+            multiSig: 0xF303Ab4FBD1182ACE7B31E99eCd6A3e8Dc525B7E, /* Deployer testing (EOA) wallet */
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
@@ -66,7 +66,7 @@ contract HelperConfig is Script {
         return NetworkConfig({
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
-            stableCoin: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a,
+            stableCoin: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a, // Crossmint's mock USDC address
             multiSig: 0x9f7b64a21c3872331B94C04756643cBdaCaeAefb, /* MultiSig SAFE wallet */
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
