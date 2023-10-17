@@ -356,4 +356,88 @@ contract VinCaskTest is Test {
         assertEq(vin.ownerOf(1), USER);
         assertEq(vin.balanceOf(USER), 1);
     }
+
+    function test_CanOnlySetValidWhiteListAddress() external {
+        vm.startPrank(admin);
+        vm.expectRevert(IVinCask.VinCask__InvalidAddress.selector);
+        vin.setWhitelistAddress(address(0), 1);
+
+        vm.expectRevert(IVinCask.VinCask__MustMintAtLeastOne.selector);
+        vin.setWhitelistAddress(USER, 0);
+        vm.stopPrank();
+    }
+
+    function test_OnlyWhitelistedAddressCanMintForFree() external {
+        vm.prank(USER);
+        vm.expectRevert(IVinCask.VinCask__AddressNotWhitelisted.selector);
+        vin.safeMultiMintForWhitelist(1);
+
+        vm.prank(admin);
+        vin.setWhitelistAddress(USER2, 2);
+
+        uint256 startingBalance = usdc.balanceOf(USER2);
+        vm.prank(USER2);
+        vin.safeMultiMintForWhitelist(2);
+        uint256 endingBalance = usdc.balanceOf(USER2);
+
+        (bool isWhitelisted, uint256 mintLimit, uint256 amountMinted) = vin.getWhitelistDetails(USER2);
+
+        assertEq(isWhitelisted, true);
+        assertEq(mintLimit, 2);
+        assertEq(amountMinted, 2);
+        assertEq(vin.getWhitelistAddresses()[0], USER2);
+        assertEq(startingBalance, endingBalance);
+        assertEq(vin.balanceOf(USER2), 2);
+    }
+
+    function test_WhitelistedAddressesCannotMintMoreThanLimit() external {
+        vm.prank(admin);
+        vin.setWhitelistAddress(USER, 1);
+
+        vm.prank(USER);
+        vm.expectRevert(IVinCask.VinCask__QuantityExceedsWhitelistLimit.selector);
+        vin.safeMultiMintForWhitelist(2);
+    }
+
+    function test__CannotSetWhitelistMintLimitLowerThanAmountMinted() external {
+        vm.prank(admin);
+        vin.setWhitelistAddress(USER, 3);
+
+        vm.prank(USER);
+        vin.safeMultiMintForWhitelist(2);
+
+        vm.prank(admin);
+        vm.expectRevert(IVinCask.VinCask__CannotSetMintLimitLowerThanMintedAmount.selector);
+        vin.setWhitelistAddress(USER, 1);
+    }
+
+    function test_OnlyRemovesValidWhitelistedAddress() external {
+        vm.startPrank(admin);
+
+        vm.expectRevert(IVinCask.VinCask__InvalidAddress.selector);
+        vin.removeWhitelistAddress(address(0));
+
+        vm.expectRevert(IVinCask.VinCask__AddressNotWhitelisted.selector);
+        vin.removeWhitelistAddress(USER);
+
+        vm.stopPrank();
+    }
+
+    function test_SuccessfullyRemovesWhitelistAddress() external {
+        vm.startPrank(admin);
+
+        vin.setWhitelistAddress(USER, 1);
+        vin.removeWhitelistAddress(USER);
+        vin.setWhitelistAddress(USER2, 2);
+
+        vm.stopPrank();
+
+        (bool isWhitelisted, uint256 mintLimit, uint256 amountMinted) = vin.getWhitelistDetails(USER);
+
+        assertEq(isWhitelisted, false);
+        assertEq(mintLimit, 0);
+        assertEq(amountMinted, 0);
+        assertEq(vin.getWhitelistAddresses()[0], USER2);
+        assertNotEq(vin.getWhitelistAddresses()[0], USER);
+    }
 }

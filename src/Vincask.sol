@@ -39,6 +39,15 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *      form with their redemption details.
  */
 contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
+    struct WhitelistDetails {
+        bool isWhitelisted;
+        uint256 mintLimit;
+        uint256 amountMinted;
+    }
+
+    mapping(address => WhitelistDetails) private whitelist;
+    address[] private whitelistAddresses;
+
     uint256 private tokenCounter;
     uint256 private tokensBurned;
 
@@ -81,7 +90,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
 
     /**
      * @dev Serves as a second Pause function for redemption, i.e. when the contract is unpaused, users can mint
-     *  but can't redeem until isRedemptionOpen() return true.
+     *  but can't redeem until isRedemptionOpen() returns true.
      */
     modifier whenRedemptionIsOpen() {
         if (!isRedemptionOpen()) revert VinCask__RedemptionNotOpen();
@@ -110,7 +119,23 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     }
 
     /**
-     * @notice Allows the admin to mint and burn NFTs at no cost. Intended to be used for
+     * @dev Allows whitelisted VinCask team addresses to mint at no cost.
+     * @param _quantity Quantity to mint.
+     */
+    function safeMultiMintForWhitelist(uint256 _quantity) external mintCompliance(_quantity) {
+        WhitelistDetails storage whitelistDetails = whitelist[msg.sender];
+
+        if (!whitelistDetails.isWhitelisted) revert VinCask__AddressNotWhitelisted();
+
+        uint256 mintsLeft = whitelistDetails.mintLimit - whitelistDetails.amountMinted;
+        if (_quantity > mintsLeft) revert VinCask__QuantityExceedsWhitelistLimit();
+
+        whitelistDetails.amountMinted += _quantity;
+        _safeMultiMint(_quantity, msg.sender, 0);
+    }
+
+    /**
+     * @dev Allows the admin to mint and burn NFTs at no cost. Intended to be used for
      *  physical sales where the customer does not want the NFT.
      * @param _quantity The number of NFTs to mint and burn.
      */
@@ -185,6 +210,109 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
         if (stableCoin == IERC20(_newStableCoin)) revert VinCask__MustSetDifferentStableCoin();
 
         stableCoin = IERC20(_newStableCoin);
+    }
+
+    /**
+     * @dev Setter function to allow approved addresses from the team to mint the NFT for free
+     * @param _address Address to whitelist
+     * @param _mintLimit The maximum quantity _address is allowed to mint for free
+     */
+    function setWhitelistAddress(address _address, uint256 _mintLimit) external onlyOwner {
+        if (_address == address(0)) revert VinCask__InvalidAddress();
+        if (_mintLimit <= 0) revert VinCask__MustMintAtLeastOne();
+
+        WhitelistDetails storage whitelistDetails = whitelist[_address];
+
+        // If the address has already minted before, the function will
+        // revert if the admin is wants to set a mint limit less than what
+        // the address has already minted
+        if (_mintLimit < whitelistDetails.amountMinted) revert VinCask__CannotSetMintLimitLowerThanMintedAmount();
+
+        whitelistDetails.isWhitelisted = true;
+        whitelistDetails.mintLimit = _mintLimit;
+
+        whitelistAddresses.push(_address);
+    }
+
+    /**
+     * @dev Setter function to remove whitelisted addresses
+     * @param _address Address to remove.
+     */
+    function removeWhitelistAddress(address _address) external onlyOwner {
+        if (_address == address(0)) revert VinCask__InvalidAddress();
+
+        WhitelistDetails storage whitelistDetails = whitelist[_address];
+
+        if (!whitelistDetails.isWhitelisted) revert VinCask__AddressNotWhitelisted();
+
+        whitelistDetails.isWhitelisted = false;
+        whitelistDetails.mintLimit = 0;
+
+        uint256 whitelistAddressIndex = _findIndex(_address);
+        _removeAddressFromWhitelistArray(whitelistAddressIndex);
+    }
+
+    /**
+     * @dev Util function for removeWhitelistAddress() to find the index of an
+     * address in an address array.
+     * @param _address Address to find the index of in the array.
+     */
+    function _findIndex(address _address) internal view returns (uint256) {
+        uint256 arrLength = whitelistAddresses.length;
+
+        for (uint256 i = 0; i < arrLength; ++i) {
+            if (whitelistAddresses[i] == _address) {
+                return i;
+            }
+        }
+
+        /**
+         * @note if _address is not found within the array, return an out of bound index
+         *
+         * Unlikely to happen as removeWhitelistAddress() checks if
+         * _address is already whitelisted, and reverts if not, thus
+         * _address should always be found in the array
+         */
+        return arrLength;
+    }
+
+    /**
+     * @dev Util function for removeWhitelistAddress() to remove an index from an array.
+     * @param _index Index of the array to remove.
+     */
+    function _removeAddressFromWhitelistArray(uint256 _index) internal {
+        uint256 arrLength = whitelistAddresses.length;
+
+        /**
+         * @note Unlikely for this error to hit as removeWhitelistAddress()
+         * checks that an address is already whitelisted, which means
+         * _findIndex() should not return an out of bounds index
+         */
+        if (_index > arrLength - 1) revert VinCask__WhitelistAddressArrayOutOfBounds();
+
+        // Move the last element into the place to delete
+        whitelistAddresses[_index] = whitelistAddresses[arrLength - 1];
+        // Remove the last element
+        whitelistAddresses.pop();
+    }
+
+    /**
+     *
+     * @param _address Address to query for whitelist details
+     * @return A tuple containing two values: a boolean value indicating if the address is in the whitelist, and a uint256 value indicating
+     */
+    function getWhitelistDetails(address _address) external view returns (bool, uint256, uint256) {
+        WhitelistDetails memory whitelistDetails = whitelist[_address];
+
+        return (whitelistDetails.isWhitelisted, whitelistDetails.mintLimit, whitelistDetails.amountMinted);
+    }
+
+    /**
+     * @dev Returns the list of whitelisted addresses allowed to mint for free.
+     * We use an array instead of a merkle tree for simplicity because we don't expect this array to be greater than 5.
+     */
+    function getWhitelistAddresses() external view returns (address[] memory) {
+        return whitelistAddresses;
     }
 
     /**
