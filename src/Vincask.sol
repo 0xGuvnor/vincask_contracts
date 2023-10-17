@@ -253,50 +253,6 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     }
 
     /**
-     * @dev Util function for removeWhitelistAddress() to find the index of an
-     * address in an address array.
-     * @param _address Address to find the index of in the array.
-     */
-    function _findIndex(address _address) internal view returns (uint256) {
-        uint256 arrLength = whitelistAddresses.length;
-
-        for (uint256 i = 0; i < arrLength; ++i) {
-            if (whitelistAddresses[i] == _address) {
-                return i;
-            }
-        }
-
-        /**
-         * @note if _address is not found within the array, return an out of bound index
-         *
-         * Unlikely to happen as removeWhitelistAddress() checks if
-         * _address is already whitelisted, and reverts if not, thus
-         * _address should always be found in the array
-         */
-        return arrLength;
-    }
-
-    /**
-     * @dev Util function for removeWhitelistAddress() to remove an index from an array.
-     * @param _index Index of the array to remove.
-     */
-    function _removeAddressFromWhitelistArray(uint256 _index) internal {
-        uint256 arrLength = whitelistAddresses.length;
-
-        /**
-         * @note Unlikely for this error to hit as removeWhitelistAddress()
-         * checks that an address is already whitelisted, which means
-         * _findIndex() should not return an out of bounds index
-         */
-        if (_index > arrLength - 1) revert VinCask__WhitelistAddressArrayOutOfBounds();
-
-        // Move the last element into the place to delete
-        whitelistAddresses[_index] = whitelistAddresses[arrLength - 1];
-        // Remove the last element
-        whitelistAddresses.pop();
-    }
-
-    /**
      *
      * @param _address Address to query for whitelist details
      * @return A tuple containing two values: a boolean value indicating if the address is in the whitelist, and a uint256 value indicating
@@ -395,11 +351,14 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     function _safeMultiMint(uint256 _quantity, address _to, uint256 _mintPrice) internal {
         uint256 totalPrice = _quantity * _mintPrice;
 
-        bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
-        /**
-         * @note Remove this check? It will never return false.
-         */
-        if (!success) revert VinCask__PaymentFailed();
+        if (totalPrice > 0) {
+            // We skip this external call for whitelist mints, i.e. when totalPrice == 0
+            bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
+            /**
+             * @note Remove this check? It will never return false based on OZ's implenentation.
+             */
+            if (!success) revert VinCask__PaymentFailed();
+        }
 
         for (uint256 i = 0; i < _quantity; ++i) {
             unchecked {
@@ -411,6 +370,50 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
 
             _safeMint(_to, tokenId);
         }
+    }
+
+    /**
+     * @dev Util function for removeWhitelistAddress() to find the index of an
+     * address in an address array.
+     * @param _address Address to find the index of in the array.
+     */
+    function _findIndex(address _address) internal view returns (uint256) {
+        uint256 arrLength = whitelistAddresses.length;
+
+        for (uint256 i = 0; i < arrLength; ++i) {
+            if (whitelistAddresses[i] == _address) {
+                return i;
+            }
+        }
+
+        /**
+         * @note if _address is not found within the array, return an out of bound index
+         *
+         * Unlikely to happen as removeWhitelistAddress() checks if
+         * _address is already whitelisted, and reverts if not, thus
+         * _address should always be found in the array
+         */
+        return arrLength;
+    }
+
+    /**
+     * @dev Util function for removeWhitelistAddress() to remove an index from an array.
+     * @param _index Index of the array to remove.
+     */
+    function _removeAddressFromWhitelistArray(uint256 _index) internal {
+        uint256 arrLength = whitelistAddresses.length;
+
+        /**
+         * @note Unlikely for this error to hit as removeWhitelistAddress()
+         * checks that an address is already whitelisted, which means
+         * _findIndex() should not return an out of bounds index
+         */
+        if (_index > arrLength - 1) revert VinCask__WhitelistAddressArrayOutOfBounds();
+
+        // Move the last element into the place to delete
+        whitelistAddresses[_index] = whitelistAddresses[arrLength - 1];
+        // Remove the last element
+        whitelistAddresses.pop();
     }
 
     /**
