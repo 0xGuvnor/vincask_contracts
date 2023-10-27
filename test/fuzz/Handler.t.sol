@@ -22,6 +22,7 @@ contract Handler is Test {
     uint256 public mintCalled;
     uint256 public redeemCalled;
     uint256 public adminMintAndBurnCalled;
+    uint256 public adminIncreaseCirculatingSupplyCalled;
 
     constructor(VinCask _vin, VinCaskX _vinX, address[] memory _users) {
         vin = _vin;
@@ -35,6 +36,7 @@ contract Handler is Test {
             vin.unpause();
         }
         vin.openRedemption();
+        vin.increaseCirculatingSupply(vin.getTotalSupply());
         vm.stopPrank();
     }
 
@@ -52,13 +54,24 @@ contract Handler is Test {
 
         // We set a limit on the limit to mint per tx so that more function
         // calls can happen before total supply is reached.
-        _quantity = bound(_quantity, 1, 10);
+        _quantity = bound(
+            _quantity,
+            1,
+            vin.getMaxCirculatingSupply() - vin.getCirculatingSupply() > 10
+                ? 10
+                : vin.getMaxCirculatingSupply() - vin.getCirculatingSupply() > 0
+                    ? vin.getMaxCirculatingSupply() - vin.getCirculatingSupply()
+                    : 1 /* We return 1 instead of 0 to prevent bound() from returning an error */
+        );
 
         // All NFTs have been minted
-        if (vin.getTotalSupply() == (nftsMinted - nftsBurned)) return;
+        if ((nftsMinted - nftsBurned) == vin.getTotalSupply()) return;
 
         // NFT(s) to mint will exceed total supply
         if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
+
+        // NFT(s) to mint will exceed max circulating supply allowed
+        if ((nftsMinted - nftsBurned) + _quantity > vin.getMaxCirculatingSupply()) return;
 
         uint256 mintPrice = vin.getMintPrice();
         uint256 totalCost = mintPrice * _quantity;
@@ -108,12 +121,24 @@ contract Handler is Test {
 
         if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
 
-        address admin = vin.getMultiSig();
-
-        vm.prank(admin);
+        vm.prank(vin.owner());
         vin.safeMultiMintAndBurnForAdmin(_quantity);
 
         nftsMinted += _quantity;
         nftsBurned += _quantity;
+    }
+
+    function adminIncreaseCirculatingSupply(uint256 _quantity) external {
+        adminIncreaseCirculatingSupplyCalled++;
+
+        uint256 currentMaxCirculatingSupply = vin.getMaxCirculatingSupply();
+        uint256 currentTotalSupply = vin.getTotalSupply();
+
+        if (currentMaxCirculatingSupply >= currentTotalSupply) return;
+
+        _quantity = bound(_quantity, currentMaxCirculatingSupply + 1, currentTotalSupply);
+
+        vm.prank(vin.owner());
+        vin.increaseCirculatingSupply(_quantity);
     }
 }

@@ -6,6 +6,7 @@ import "../src/mocks/UsdcMock.sol";
 
 contract HelperConfig is Script {
     struct NetworkConfig {
+        uint256 maxCirculatingSupply;
         uint256 totalSupply;
         uint256 mintPrice;
         address stableCoin;
@@ -18,6 +19,7 @@ contract HelperConfig is Script {
 
     address public TEST_MULTI_SIG = makeAddr("testMultiSig");
 
+    uint256 public constant MAX_CIRCULATING_SUPPLY = 10;
     uint256 public constant TOTAL_SUPPLY = 125;
     uint256 public constant MINT_PRICE = 20_000e6; // 6 decimal places for USDC
     address public constant MULTI_SIG = address(0); // Placeholder address, to update before Mainnet deployment
@@ -42,6 +44,7 @@ contract HelperConfig is Script {
 
     function getMainnetConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
+            maxCirculatingSupply: MAX_CIRCULATING_SUPPLY,
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, // USDC address
@@ -53,6 +56,7 @@ contract HelperConfig is Script {
 
     function getSepoliaConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
+            maxCirculatingSupply: MAX_CIRCULATING_SUPPLY,
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: 0xa4Eb0D6f240F6F7BA3561Fc2a118B27C4438F7ed, // Deployed UsdcMock from src/mocks/UsdcMock.sol
@@ -64,6 +68,7 @@ contract HelperConfig is Script {
 
     function getGoerliConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
+            maxCirculatingSupply: MAX_CIRCULATING_SUPPLY,
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: 0x98339D8C260052B7ad81c28c16C0b98420f2B46a, // Crossmint's mock USDC address
@@ -82,6 +87,7 @@ contract HelperConfig is Script {
         UsdcMock usdcMock = new UsdcMock();
 
         return NetworkConfig({
+            maxCirculatingSupply: MAX_CIRCULATING_SUPPLY,
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: address(usdcMock),

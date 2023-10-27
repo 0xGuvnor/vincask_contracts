@@ -2,18 +2,21 @@
 pragma solidity ^0.8.18;
 
 interface IVinCask {
+    error VinCask__PaymentFailed();
+    error VinCask__InvalidAddress();
+    error VinCask__RedemptionNotOpen();
     error VinCask__MaxSupplyExceeded();
     error VinCask__MustMintAtLeastOne();
-    error VinCask__MustApproveAtLeastOne();
-    error VinCask__PaymentFailed();
     error VinCask__CallerNotAuthorised();
+    error VinCask__AddressNotWhitelisted();
+    error VinCask__MustApproveAtLeastOne();
     error VinCask__MustSetDifferentPrice();
     error VinCask__MustSetDifferentStableCoin();
-    error VinCask__RedemptionNotOpen();
-    error VinCask__AddressNotWhitelisted();
+    error VinCask__MaxCirculatingSupplyExceeded();
     error VinCask__QuantityExceedsWhitelistLimit();
-    error VinCask__InvalidAddress();
+    error VinCask__OnlyCanIncreaseCirculatingSupply();
     error VinCask__WhitelistAddressArrayOutOfBounds();
+    error VinCask__CirculatingSupplyExceedsTotalSupply();
     error VinCask__CannotSetMintLimitLowerThanMintedAmount();
 
     event RedemptionOpened(address indexed account);
@@ -31,6 +34,8 @@ interface IVinCask {
 
     function multiApprove(uint256[] calldata _tokenIds) external;
 
+    function increaseCirculatingSupply(uint256 _newCirculatingSupply) external;
+
     function setMintPrice(uint256 _newMintPrice) external;
 
     function setStableCoin(address _newStableCoin) external;
@@ -42,6 +47,10 @@ interface IVinCask {
     function openRedemption() external;
 
     function closeRedemption() external;
+
+    function getCirculatingSupply() external view returns (uint256);
+
+    function getMaxCirculatingSupply() external view returns (uint256);
 
     function getTotalSupply() external view returns (uint256);
 

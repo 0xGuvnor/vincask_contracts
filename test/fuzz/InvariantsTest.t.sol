@@ -42,17 +42,23 @@ contract InvariantsTest is StdInvariant, Test {
     function invariant_SumOfAllMintsIsLessThanOrEqualToTotalSupply() external {
         uint256 totalSupply = vin.getTotalSupply();
         uint256 netNftsMinted = handler.nftsMinted() - handler.nftsBurned();
+        uint256 circulatingSupply = vin.getCirculatingSupply();
+        uint256 maxCirculatingSupply = vin.getMaxCirculatingSupply();
         uint256 vinXMinted;
 
-        console.log("Total supply:                  ", totalSupply);
-        console.log("Net NFTs minted:               ", netNftsMinted);
-        console.log("NFTs minted:                   ", handler.nftsMinted());
-        console.log("NFTs burned:                   ", handler.nftsBurned());
-        console.log("NFTs redeemed:                 ", handler.nftsRedeemed());
+        console.log("Total supply:                            ", totalSupply);
+        console.log("Circulating supply:                      ", circulatingSupply);
+        console.log("Max circulating supply:                  ", maxCirculatingSupply, "\n");
 
-        console.log("Times mint called:             ", handler.mintCalled());
-        console.log("Times redeem called:           ", handler.redeemCalled());
-        console.log("Times admin mint & burn called:", handler.adminMintAndBurnCalled());
+        console.log("Net NFTs minted:                         ", netNftsMinted);
+        console.log("NFTs minted:                             ", handler.nftsMinted());
+        console.log("NFTs burned:                             ", handler.nftsBurned());
+        console.log("NFTs redeemed:                           ", handler.nftsRedeemed(), "\n");
+
+        console.log("Times mint called:                       ", handler.mintCalled());
+        console.log("Times redeem called:                     ", handler.redeemCalled());
+        console.log("Times admin mint & burn called:          ", handler.adminMintAndBurnCalled());
+        console.log("Times increase circulating supply called:", handler.adminIncreaseCirculatingSupplyCalled(), "\n");
 
         for (uint256 i = 0; i < NUM_OF_USERS; ++i) {
             address user = users[i];

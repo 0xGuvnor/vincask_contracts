@@ -21,6 +21,7 @@ contract VinCaskTest is Test {
     VinCask vin;
     VinCaskX vinX;
     HelperConfig config;
+    uint256 maxCirculatingSupply;
     uint256 totalSupply;
     uint256 mintPrice;
     address usdcAddr;
@@ -36,7 +37,7 @@ contract VinCaskTest is Test {
     function setUp() external {
         DeployVinCask deployer = new DeployVinCask();
         (vin, vinX, config) = deployer.run();
-        (totalSupply, mintPrice, usdcAddr, multiSig, royaltyFee,) = config.activeNetworkConfig();
+        (maxCirculatingSupply, totalSupply, mintPrice, usdcAddr, multiSig, royaltyFee,) = config.activeNetworkConfig();
         usdc = UsdcMock(usdcAddr);
         admin = vin.owner();
 
@@ -65,7 +66,7 @@ contract VinCaskTest is Test {
 
         assertEq(vin.balanceOf(USER), 1);
         assertEq(vin.ownerOf(1), USER);
-        assertEq(vin.getLatestTokenId(), 1);
+        assertEq(vin.getCirculatingSupply(), 1);
         assertEq(startingUserBalance, endingUserBalance + mintPrice);
         assertEq(startingMultisigBalance + mintPrice, endingMultisigBalance);
 
@@ -73,7 +74,7 @@ contract VinCaskTest is Test {
     }
 
     function test_CanMintMultipleNfts(uint256 _quantity) external {
-        _quantity = bound(_quantity, 2, totalSupply);
+        _quantity = bound(_quantity, 2, vin.getMaxCirculatingSupply());
         // We mint additional USDC to be able to afford the NFT minting
         usdc.mint(USER, _quantity * mintPrice);
 
@@ -92,7 +93,7 @@ contract VinCaskTest is Test {
             assertEq(vin.ownerOf(i), USER);
         }
         assertEq(vin.balanceOf(USER), _quantity);
-        assertEq(vin.getLatestTokenId(), _quantity);
+        assertEq(vin.getCirculatingSupply(), _quantity);
         assertEq(startingUserBalance, endingUserBalance + (mintPrice * _quantity));
         assertEq(startingMultisigBalance + (mintPrice * _quantity), endingMultisigBalance);
     }
@@ -120,6 +121,9 @@ contract VinCaskTest is Test {
     }
 
     function test_CanMintUpToTotalSupply() external {
+        vm.prank(admin);
+        vin.increaseCirculatingSupply(totalSupply);
+
         vm.startPrank(USER);
         usdc.mint(USER, mintPrice * totalSupply);
         usdc.approve(address(vin), mintPrice * totalSupply);
@@ -127,7 +131,7 @@ contract VinCaskTest is Test {
         vin.safeMultiMintWithStableCoin(totalSupply);
         vm.stopPrank();
 
-        assertEq(vin.getLatestTokenId(), vin.getTotalSupply());
+        assertEq(vin.getCirculatingSupply(), vin.getTotalSupply());
         assertEq(vin.balanceOf(USER), vin.getTotalSupply());
     }
 
@@ -145,7 +149,7 @@ contract VinCaskTest is Test {
     }
 
     function test_CanMintWithCrossmint(uint256 _quantity) external {
-        _quantity = bound(_quantity, 1, totalSupply);
+        _quantity = bound(_quantity, 1, vin.getMaxCirculatingSupply());
         uint256 startingMultiSigBalance = usdc.balanceOf(multiSig);
 
         vm.startPrank(CROSSMINT);
@@ -161,7 +165,7 @@ contract VinCaskTest is Test {
             // NFT token ID starts at 1
             assertEq(vin.ownerOf(i + 1), CROSSMINT);
         }
-        assertEq(vin.getLatestTokenId(), _quantity);
+        assertEq(vin.getCirculatingSupply(), _quantity);
         // Mint price of 10 USDC used for Crossmint dev environment
         assertEq(startingMultiSigBalance + (10e6 * _quantity), endingMultiSigBalance);
     }
@@ -170,7 +174,7 @@ contract VinCaskTest is Test {
         uint256 initialTokenId = vin.getLatestTokenId();
         uint256 initialTotalSupply = vin.getTotalSupply();
 
-        _quantity = bound(_quantity, 1, initialTotalSupply);
+        _quantity = bound(_quantity, 1, vin.getMaxCirculatingSupply());
 
         vm.prank(admin);
         vin.safeMultiMintAndBurnForAdmin(_quantity);
@@ -283,6 +287,35 @@ contract VinCaskTest is Test {
         vm.prank(USER2);
         vm.expectRevert("ERC721: approve caller is not token owner or approved for all");
         vin.multiApprove(tokenIdArray);
+    }
+
+    function test_OnlyAdminCanIncreaseCirculatingSupply() external {
+        uint256 startingMaxCirculatingSupply = vin.getMaxCirculatingSupply();
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(USER);
+        vin.increaseCirculatingSupply(startingMaxCirculatingSupply + 1);
+
+        vm.prank(admin);
+        vin.increaseCirculatingSupply(startingMaxCirculatingSupply + 1);
+
+        uint256 endingMaxCirculatingSupply = vin.getMaxCirculatingSupply();
+
+        assertEq(startingMaxCirculatingSupply + 1, endingMaxCirculatingSupply);
+    }
+
+    function test_CannotReduceCirculatingSupply() external {
+        uint256 currentMaxCirculatingSupply = vin.getMaxCirculatingSupply();
+
+        vm.expectRevert(IVinCask.VinCask__OnlyCanIncreaseCirculatingSupply.selector);
+        vm.prank(admin);
+        vin.increaseCirculatingSupply(currentMaxCirculatingSupply - 1);
+    }
+
+    function test_CirculatingSupplyCannnotExceedTotalSupply() external {
+        vm.expectRevert(IVinCask.VinCask__CirculatingSupplyExceedsTotalSupply.selector);
+        vm.prank(admin);
+        vin.increaseCirculatingSupply(totalSupply + 1);
     }
 
     function test_AdminCannotSetSameMintPrice() external {
@@ -399,7 +432,7 @@ contract VinCaskTest is Test {
         vin.safeMultiMintForWhitelist(2);
     }
 
-    function test__CannotSetWhitelistMintLimitLowerThanAmountMinted() external {
+    function test_CannotSetWhitelistMintLimitLowerThanAmountMinted() external {
         vm.prank(admin);
         vin.setWhitelistAddress(USER, 3);
 

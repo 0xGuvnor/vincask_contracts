@@ -10,6 +10,7 @@ contract DeployVinCask is Script {
     function run() external returns (VinCask, VinCaskX, HelperConfig) {
         HelperConfig config = new HelperConfig();
         (
+            uint256 maxCirculatingSupply,
             uint256 totalSupply,
             uint256 mintPrice,
             address stableCoin,
@@ -20,7 +21,7 @@ contract DeployVinCask is Script {
 
         vm.startBroadcast(deployerKey);
         VinCaskX vinX = new VinCaskX();
-        VinCask vin = new VinCask(mintPrice, stableCoin, totalSupply, multiSig, vinX, royaltyFee);
+        VinCask vin = new VinCask(mintPrice, stableCoin, maxCirculatingSupply, totalSupply, multiSig, vinX, royaltyFee);
 
         vin.pause(); // Admin is to unpause the contract when minting is ready to go live
         vin.transferOwnership(multiSig);

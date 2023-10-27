@@ -53,6 +53,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
 
     uint256 private mintPrice;
     IERC20 private stableCoin;
+    uint256 private maxCirculatingSupply;
     uint256 private totalSupply;
     bool private redemptionOpen;
 
@@ -62,6 +63,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     constructor(
         uint256 _mintPrice,
         address _stableCoin,
+        uint256 _maxCirculatingSupply,
         uint256 _totalSupply,
         address _multiSig,
         VinCaskX _VIN_X,
@@ -69,12 +71,14 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     ) ERC721("VinCask", "VIN") {
         mintPrice = _mintPrice;
         stableCoin = IERC20(_stableCoin);
+        maxCirculatingSupply = _maxCirculatingSupply;
         totalSupply = _totalSupply;
         MULTI_SIG = _multiSig;
         VIN_X = _VIN_X;
 
         _setDefaultRoyalty(_multiSig, _royaltyFee);
 
+        tokenCounter = 0;
         redemptionOpen = false;
     }
 
@@ -83,7 +87,8 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      * @param _quantity The number of NFTs to mint.
      */
     modifier mintCompliance(uint256 _quantity) {
-        if ((tokenCounter - tokensBurned) + _quantity > totalSupply) revert VinCask__MaxSupplyExceeded();
+        if (getCirculatingSupply() + _quantity > totalSupply) revert VinCask__MaxSupplyExceeded();
+        if (getCirculatingSupply() + _quantity > maxCirculatingSupply) revert VinCask__MaxCirculatingSupplyExceeded();
         if (_quantity == 0) revert VinCask__MustMintAtLeastOne();
         _;
     }
@@ -142,6 +147,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     function safeMultiMintAndBurnForAdmin(uint256 _quantity) external mintCompliance(_quantity) onlyOwner {
         unchecked {
             // Underflow not possible as you can't burn more than you mint
+            maxCirculatingSupply -= _quantity;
             totalSupply -= _quantity;
             tokensBurned += _quantity;
         }
@@ -188,6 +194,13 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
         for (uint256 i = 0; i < numOfTokens; ++i) {
             approve(address(this), _tokenIds[i]);
         }
+    }
+
+    function increaseCirculatingSupply(uint256 _newCirculatingSupply) external onlyOwner {
+        if (_newCirculatingSupply <= maxCirculatingSupply) revert VinCask__OnlyCanIncreaseCirculatingSupply();
+        if (_newCirculatingSupply > totalSupply) revert VinCask__CirculatingSupplyExceedsTotalSupply();
+
+        maxCirculatingSupply = _newCirculatingSupply;
     }
 
     /**
@@ -255,7 +268,8 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     /**
      *
      * @param _address Address to query for whitelist details
-     * @return A tuple containing two values: a boolean value indicating if the address is in the whitelist, and a uint256 value indicating
+     * @return A tuple containing two values: a boolean value indicating if the address
+     * is in the whitelist, and a uint256 value indicating
      */
     function getWhitelistDetails(address _address) external view returns (bool, uint256, uint256) {
         WhitelistDetails memory whitelistDetails = whitelist[_address];
@@ -265,7 +279,8 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
 
     /**
      * @dev Returns the list of whitelisted addresses allowed to mint for free.
-     * We use an array instead of a merkle tree for simplicity because we don't expect this array to be greater than 5.
+     * We use an array instead of a merkle tree for simplicity because we don't expect
+     * this array to be greater than 5.
      */
     function getWhitelistAddresses() external view returns (address[] memory) {
         return whitelistAddresses;
@@ -283,6 +298,17 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      */
     function getLatestTokenId() external view returns (uint256) {
         return tokenCounter;
+    }
+
+    /**
+     * @dev Returns the circulating supply of tokens, i.e. net tokens minted (Total minted - total burned).
+     */
+    function getCirculatingSupply() public view returns (uint256) {
+        return tokenCounter - tokensBurned;
+    }
+
+    function getMaxCirculatingSupply() external view returns (uint256) {
+        return maxCirculatingSupply;
     }
 
     /**

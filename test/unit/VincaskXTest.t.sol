@@ -24,7 +24,7 @@ contract VinCaskXTest is Test {
     function setUp() external {
         DeployVinCask deployer = new DeployVinCask();
         (vin, vinX, config) = deployer.run();
-        (, mintPrice, usdcAddr,,,) = config.activeNetworkConfig();
+        (,, mintPrice, usdcAddr,,,) = config.activeNetworkConfig();
         usdc = UsdcMock(usdcAddr);
 
         if (vin.paused()) {
