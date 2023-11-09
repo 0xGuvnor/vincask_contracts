@@ -453,11 +453,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     /**
      * @notice Remove this function? OZ includes this in their contract wizard, but this contract does not use this hook.
      */
-    function _beforeTokenTransfer(address _from, address _to, uint256 _tokenId, uint256 _batchSize)
-        internal
-        override
-        whenNotPaused
-    {
+    function _beforeTokenTransfer(address _from, address _to, uint256 _tokenId, uint256 _batchSize) internal override {
         super._beforeTokenTransfer(_from, _to, _tokenId, _batchSize);
     }
 
