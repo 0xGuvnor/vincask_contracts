@@ -42,6 +42,11 @@ contract VinCaskTest is Test {
         admin = vin.owner();
 
         if (vin.paused()) {
+            // We start our testing with having the minting state unpaused
+
+            // As we are using OZ's Pausable implementation only for
+            // safeMultiMintWithStableCoin, safeMultiMintWithCreditCard and multiRedeem,
+            // we can rely on the whenNotPaused modifier to work as intended.
             vm.prank(admin);
             vin.unpause();
         }
@@ -237,6 +242,20 @@ contract VinCaskTest is Test {
 
         vm.expectRevert(IVinCask.VinCask__CallerNotAuthorised.selector);
         vin.multiRedeem(tokenIdArray);
+        vm.stopPrank();
+    }
+
+    function test_CannotRedeemWhileRedemptionIsClosed() external userMint(1) {
+        uint256[] memory tokenIdArray = new uint256[](1);
+        tokenIdArray[0] = 1;
+
+        vm.startPrank(USER);
+
+        vin.multiApprove(tokenIdArray);
+
+        vm.expectRevert(IVinCask.VinCask__RedemptionNotOpen.selector);
+        vin.multiRedeem(tokenIdArray);
+
         vm.stopPrank();
     }
 
