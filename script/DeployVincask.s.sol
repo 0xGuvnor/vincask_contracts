@@ -19,13 +19,23 @@ contract DeployVinCask is Script {
             uint256 deployerKey
         ) = config.activeNetworkConfig();
 
-        vm.startBroadcast(deployerKey);
+        /**
+         * @dev Comment this out if deploying using a hardware wallet
+         */
+        // vm.startBroadcast(deployerKey);
+
+        /**
+         * @dev Comment this out if deploying using a private key stored in .env
+         */
+        vm.startBroadcast(vm.envAddress("DEPLOYER_ADDRESS"));
+
         VinCaskX vinX = new VinCaskX();
         VinCask vin = new VinCask(mintPrice, stableCoin, maxCirculatingSupply, totalSupply, multiSig, vinX, royaltyFee);
 
         vin.pause(); // Admin is to unpause the contract when minting is ready to go live
         vin.transferOwnership(multiSig);
         vinX.transferOwnership(address(vin));
+
         vm.stopBroadcast();
 
         return (vin, vinX, config);

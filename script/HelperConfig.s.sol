@@ -22,7 +22,7 @@ contract HelperConfig is Script {
     uint256 public constant MAX_CIRCULATING_SUPPLY = 10;
     uint256 public constant TOTAL_SUPPLY = 125;
     uint256 public constant MINT_PRICE = 20_000e6; // 6 decimal places for USDC
-    address public constant MULTI_SIG = address(0); // Placeholder address, to update before Mainnet deployment
+    address public constant MULTI_SIG = address(10); // Placeholder address, to update before Mainnet deployment
     uint96 public constant ROYALTY_FEE = 500; // 500 = 5%
     uint256 public constant ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
@@ -60,7 +60,7 @@ contract HelperConfig is Script {
             totalSupply: TOTAL_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: 0xa4Eb0D6f240F6F7BA3561Fc2a118B27C4438F7ed, // Deployed UsdcMock from src/mocks/UsdcMock.sol
-            multiSig: 0xF303Ab4FBD1182ACE7B31E99eCd6A3e8Dc525B7E, /* Deployer testing (EOA) wallet */
+            multiSig: 0xe8dD2e445646DB4a94Ad298BD0CdA43f64BeD151, /* Deployer testing (EOA) wallet */
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });

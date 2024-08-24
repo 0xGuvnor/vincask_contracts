@@ -45,17 +45,17 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
         uint256 amountMinted;
     }
 
+    bool private redemptionOpen;
+    uint256 private mintPrice;
+    IERC20 private stableCoin;
+    uint256 private maxCirculatingSupply;
+    uint256 private totalSupply;
+
     mapping(address => WhitelistDetails) private whitelist;
     address[] private whitelistAddresses;
 
     uint256 private tokenCounter;
     uint256 private tokensBurned;
-
-    uint256 private mintPrice;
-    IERC20 private stableCoin;
-    uint256 private maxCirculatingSupply;
-    uint256 private totalSupply;
-    bool private redemptionOpen;
 
     address private immutable MULTI_SIG;
     VinCaskX private immutable VIN_X;
@@ -241,10 +241,14 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
         // the address has already minted
         if (_mintLimit < whitelistDetails.amountMinted) revert VinCask__CannotSetMintLimitLowerThanMintedAmount();
 
+        // Adds the address to the whitelist addresses array,
+        // won't add multiple instances if admin is updating the mint limit
+        if (!whitelistDetails.isWhitelisted) {
+            whitelistAddresses.push(_address);
+        }
+
         whitelistDetails.isWhitelisted = true;
         whitelistDetails.mintLimit = _mintLimit;
-
-        whitelistAddresses.push(_address);
     }
 
     /**

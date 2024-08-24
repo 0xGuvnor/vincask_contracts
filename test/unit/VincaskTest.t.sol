@@ -331,7 +331,7 @@ contract VinCaskTest is Test {
         vin.increaseCirculatingSupply(currentMaxCirculatingSupply - 1);
     }
 
-    function test_CirculatingSupplyCannnotExceedTotalSupply() external {
+    function test_CirculatingSupplyCannotExceedTotalSupply() external {
         vm.expectRevert(IVinCask.VinCask__CirculatingSupplyExceedsTotalSupply.selector);
         vm.prank(admin);
         vin.increaseCirculatingSupply(totalSupply + 1);
@@ -449,6 +449,35 @@ contract VinCaskTest is Test {
         vm.prank(USER);
         vm.expectRevert(IVinCask.VinCask__QuantityExceedsWhitelistLimit.selector);
         vin.safeMultiMintForWhitelist(2);
+    }
+
+    function test_CanIncreaseWhitelistMintLimit() external {
+        vm.startPrank(admin);
+        vin.setWhitelistAddress(USER, 3);
+        (, uint256 oldAmount,) = vin.getWhitelistDetails(USER);
+
+        vin.setWhitelistAddress(USER, 5);
+        (, uint256 newAmount,) = vin.getWhitelistDetails(USER);
+        vm.stopPrank();
+
+        assertEq(oldAmount, 3);
+        assertEq(newAmount, 5);
+    }
+
+    function test_WhitelistAddressesArrayDoesNotHaveDuplicates() external {
+        vm.startPrank(admin);
+        vin.setWhitelistAddress(USER, 1);
+        vin.setWhitelistAddress(USER, 2);
+
+        vin.setWhitelistAddress(USER2, 1);
+        vin.setWhitelistAddress(USER2, 2);
+        vm.stopPrank();
+
+        // Checks that updating a whitelisted address' mint limit doesn't push multiple
+        // instances of its address into the array
+        assertEq(vin.getWhitelistAddresses().length, 2);
+        assertEq(vin.getWhitelistAddresses()[0], USER);
+        assertEq(vin.getWhitelistAddresses()[1], USER2);
     }
 
     function test_CannotSetWhitelistMintLimitLowerThanAmountMinted() external {
