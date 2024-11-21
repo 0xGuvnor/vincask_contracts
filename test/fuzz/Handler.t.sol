@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
-import "forge-std/Test.sol";
-import "../../src/VinCask.sol";
-import "../../src/VinCaskX.sol";
-import "../../src/mocks/UsdcMock.sol";
+import {VinCask} from "../../src/VinCask.sol";
+import {VinCaskX} from "../../src/VinCaskX.sol";
+import {UsdcMock} from "../../src/mocks/UsdcMock.sol";
+
+import {Test} from "forge-std/Test.sol";
 
 contract Handler is Test {
     VinCask vin;
@@ -22,7 +23,7 @@ contract Handler is Test {
     uint256 public mintCalled;
     uint256 public redeemCalled;
     uint256 public adminMintAndBurnCalled;
-    uint256 public adminIncreaseCirculatingSupplyCalled;
+    uint256 public adminIncreaseMintingCapCalled;
 
     constructor(VinCask _vin, VinCaskX _vinX, address[] memory _users) {
         vin = _vin;
@@ -36,7 +37,7 @@ contract Handler is Test {
             vin.unpause();
         }
         vin.openRedemption();
-        vin.increaseCirculatingSupply(vin.getTotalSupply());
+        // vin.increaseMintingCap(vin.getMaxSupply());
         vm.stopPrank();
     }
 
@@ -52,29 +53,38 @@ contract Handler is Test {
     function mintNft(uint256 _quantity, uint256 _userIndexSeed) external useUser(_userIndexSeed) {
         mintCalled++;
 
-        // We set a limit on the limit to mint per tx so that more function
+        // We set a limit on the quantity to mint per tx so that more function
         // calls can happen before total supply is reached.
+        // This helps distribute testing across more transactions rather than
+        // using up all available supply in a few large mints.
         _quantity = bound(
             _quantity,
-            1,
-            vin.getMaxCirculatingSupply() - vin.getCirculatingSupply() > 10
-                ? 10
-                : vin.getMaxCirculatingSupply() - vin.getCirculatingSupply() > 0
-                    ? vin.getMaxCirculatingSupply() - vin.getCirculatingSupply()
-                    : 1 /* We return 1 instead of 0 to prevent bound() from returning an error */
+            1, // Minimum mint amount
+            vin.getMintingCap() - vin.getTotalMintedForCap() > 10
+                ? 10 // If more than 10 tokens available, cap at 10 to allow for more test transactions
+                : vin.getMintingCap() - vin.getTotalMintedForCap() > 0
+                    ? vin.getMintingCap() - vin.getTotalMintedForCap() // If less than 10 available, use remaining amount
+                    : 1 // Return 1 instead of 0 to prevent bound() function from reverting
+                // bound() requires min <= max, so we can't return 0 as the max
         );
 
         // All NFTs have been minted
-        if ((nftsMinted - nftsBurned) == vin.getTotalSupply()) return;
+        if (nftsMinted == vin.getMaxSupply()) return;
 
         // NFT(s) to mint will exceed total supply
-        if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
+        if (nftsMinted + _quantity > vin.getMaxSupply()) return;
 
-        // NFT(s) to mint will exceed max circulating supply allowed
-        if ((nftsMinted - nftsBurned) + _quantity > vin.getMaxCirculatingSupply()) return;
+        // NFT(s) to mint will exceed the minting cap
+        if ((nftsMinted - nftsBurned) + _quantity > vin.getMintingCap()) return;
 
+        // Get the mint price in 18 decimals from the contract
         uint256 mintPrice = vin.getMintPrice();
-        uint256 totalCost = mintPrice * _quantity;
+        // Get the number of decimals used by the USDC token
+        uint256 usdcDecimals = usdc.decimals();
+        // Convert mint price from 18 decimals to USDC decimals (6)
+        uint256 adjustedPrice = mintPrice / (10 ** (18 - usdcDecimals));
+        // Calculate total cost in USDC decimals for all NFTs being minted
+        uint256 totalCost = adjustedPrice * _quantity;
 
         usdc.mint(currentUser, totalCost);
         usdc.approve(address(vin), totalCost);
@@ -102,7 +112,6 @@ contract Handler is Test {
 
         uint256[] memory nftsToRedeem = nftsOwned[currentUser];
 
-        vin.multiApprove(nftsToRedeem);
         vin.multiRedeem(nftsToRedeem);
 
         // Reset the values as all NFTs owned by the user are redeemed
@@ -115,11 +124,15 @@ contract Handler is Test {
     function adminMintAndBurn(uint256 _quantity) external {
         adminMintAndBurnCalled++;
 
+        // We set a limit on the quantity to mint per tx as we expect the majority
+        // of the sales to come through the contract.
         _quantity = bound(_quantity, 1, 3);
 
-        if (vin.getTotalSupply() == (nftsMinted - nftsBurned)) return;
+        if (nftsMinted == vin.getMaxSupply()) return;
 
-        if ((nftsMinted - nftsBurned) + _quantity > vin.getTotalSupply()) return;
+        if (nftsMinted + _quantity > vin.getMaxSupply()) return;
+
+        if ((nftsMinted - nftsBurned) + _quantity > vin.getMintingCap()) return;
 
         vm.prank(vin.owner());
         vin.safeMultiMintAndBurnForAdmin(_quantity);
@@ -128,17 +141,17 @@ contract Handler is Test {
         nftsBurned += _quantity;
     }
 
-    function adminIncreaseCirculatingSupply(uint256 _quantity) external {
-        adminIncreaseCirculatingSupplyCalled++;
+    function adminIncreaseMintingCap(uint256 _quantity) external {
+        adminIncreaseMintingCapCalled++;
 
-        uint256 currentMaxCirculatingSupply = vin.getMaxCirculatingSupply();
-        uint256 currentTotalSupply = vin.getTotalSupply();
+        uint256 currentMintingCap = vin.getMintingCap();
+        uint256 currentMaxSupply = vin.getMaxSupply();
 
-        if (currentMaxCirculatingSupply >= currentTotalSupply) return;
+        if (currentMintingCap >= currentMaxSupply) return;
 
-        _quantity = bound(_quantity, currentMaxCirculatingSupply + 1, currentTotalSupply);
+        _quantity = bound(_quantity, currentMintingCap + 1, currentMaxSupply);
 
         vm.prank(vin.owner());
-        vin.increaseCirculatingSupply(_quantity);
+        vin.increaseMintingCap(_quantity);
     }
 }

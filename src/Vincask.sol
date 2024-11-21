@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
 import {IVinCask} from "./interface/IVinCask.sol";
-import {VinCaskX} from "./VinCaskX.sol";
+import {IVinCaskX} from "./interface/IVinCaskX.sol";
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Royalty} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Royalty.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /*
       ___                       ___           ___           ___           ___           ___     
@@ -38,48 +41,49 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *      For redemptions to be eligible, they MUST be initiated through the website UI as users have to complete a
  *      form with their redemption details.
  */
-contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
-    struct WhitelistDetails {
-        bool isWhitelisted;
-        uint256 mintLimit;
-        uint256 amountMinted;
-    }
+contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, ReentrancyGuard, IVinCask {
+    using SafeERC20 for IERC20;
 
     bool private redemptionOpen;
     uint256 private mintPrice;
     IERC20 private stableCoin;
-    uint256 private maxCirculatingSupply;
-    uint256 private totalSupply;
+    uint8 private stableCoinDecimals;
+    uint256 private mintingCap;
+    uint256 private maxSupply;
 
     mapping(address => WhitelistDetails) private whitelist;
     address[] private whitelistAddresses;
+    address private crossmintAddress;
+    address private multiSig;
+    uint256 private totalMintedCount;
+    /**
+     * @dev Tracks tokens burned by admin for physical sales only.
+     * Does NOT include tokens burned through redemption, as redeemed tokens
+     * should still count towards minting cap.
+     */
+    uint256 private adminBurnedCount;
+    uint256 private redemptionBurnedCount;
 
-    uint256 private tokenCounter;
-    uint256 private tokensBurned;
-
-    address private immutable MULTI_SIG;
-    VinCaskX private immutable VIN_X;
+    IVinCaskX private immutable VIN_X;
 
     constructor(
-        uint256 _mintPrice,
+        uint256 _mintPrice, /* Price is in 18 decimals */
         address _stableCoin,
-        uint256 _maxCirculatingSupply,
-        uint256 _totalSupply,
+        uint256 _mintingCap,
+        uint256 _maxSupply,
         address _multiSig,
-        VinCaskX _VIN_X,
-        uint96 _royaltyFee /* Expressed in basis points i.e. 500 = 5% */
+        IVinCaskX _VIN_X,
+        uint96 _royaltyFee /* Expressed in basis points (e.g. 500 = 5%) */
     ) ERC721("VinCask", "VIN") {
         mintPrice = _mintPrice;
         stableCoin = IERC20(_stableCoin);
-        maxCirculatingSupply = _maxCirculatingSupply;
-        totalSupply = _totalSupply;
-        MULTI_SIG = _multiSig;
+        stableCoinDecimals = IERC20Metadata(_stableCoin).decimals();
+        mintingCap = _mintingCap;
+        maxSupply = _maxSupply;
+        multiSig = _multiSig;
         VIN_X = _VIN_X;
 
         _setDefaultRoyalty(_multiSig, _royaltyFee);
-
-        tokenCounter = 0;
-        redemptionOpen = false;
     }
 
     /**
@@ -87,8 +91,10 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      * @param _quantity The number of NFTs to mint.
      */
     modifier mintCompliance(uint256 _quantity) {
-        if (getCirculatingSupply() + _quantity > totalSupply) revert VinCask__MaxSupplyExceeded();
-        if (getCirculatingSupply() + _quantity > maxCirculatingSupply) revert VinCask__MaxCirculatingSupplyExceeded();
+        uint256 currentMinted = getTotalMintedForCap();
+
+        if (currentMinted + _quantity > maxSupply) revert VinCask__MaxSupplyExceeded();
+        if (currentMinted + _quantity > mintingCap) revert VinCask__MintingCapExceeded();
         if (_quantity == 0) revert VinCask__MustMintAtLeastOne();
         _;
     }
@@ -97,7 +103,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      * @dev Serves as a second Pause function for redemption, i.e. when the contract is unpaused, users can mint
      *  but can't redeem until isRedemptionOpen() returns true.
      */
-    modifier whenRedemptionIsOpen() {
+    modifier canRedeem() {
         if (!isRedemptionOpen()) revert VinCask__RedemptionNotOpen();
         _;
     }
@@ -106,8 +112,13 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      * @dev Users will call this function to mint the NFT if they are paying from their wallet.
      * @param _quantity The number of NFTs to mint.
      */
-    function safeMultiMintWithStableCoin(uint256 _quantity) external mintCompliance(_quantity) whenNotPaused {
-        _safeMultiMint(_quantity, msg.sender, mintPrice);
+    function safeMultiMintWithStableCoin(uint256 _quantity)
+        external
+        mintCompliance(_quantity)
+        whenNotPaused
+        nonReentrant
+    {
+        _safeMultiMint(_quantity, msg.sender, mintPrice, MintType.STABLECOIN);
     }
 
     /**
@@ -119,15 +130,23 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
         external
         mintCompliance(_quantity)
         whenNotPaused
+        nonReentrant
     {
-        _safeMultiMint(_quantity, _to, 10e6);
+        if (msg.sender != crossmintAddress) revert VinCask__CallerNotAuthorised();
+
+        _safeMultiMint(_quantity, _to, 0, MintType.CREDIT_CARD);
     }
 
     /**
      * @dev Allows whitelisted VinCask team addresses to mint at no cost.
      * @param _quantity Quantity to mint.
      */
-    function safeMultiMintForWhitelist(uint256 _quantity) external mintCompliance(_quantity) {
+    function safeMultiMintForWhitelist(uint256 _quantity)
+        external
+        mintCompliance(_quantity)
+        whenNotPaused
+        nonReentrant
+    {
         WhitelistDetails storage whitelistDetails = whitelist[msg.sender];
 
         if (!whitelistDetails.isWhitelisted) revert VinCask__AddressNotWhitelisted();
@@ -136,7 +155,7 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
         if (_quantity > mintsLeft) revert VinCask__QuantityExceedsWhitelistLimit();
 
         whitelistDetails.amountMinted += _quantity;
-        _safeMultiMint(_quantity, msg.sender, 0);
+        _safeMultiMint(_quantity, msg.sender, 0, MintType.WHITELIST);
     }
 
     /**
@@ -144,25 +163,18 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      *  physical sales where the customer does not want the NFT.
      * @param _quantity The number of NFTs to mint and burn.
      */
-    function safeMultiMintAndBurnForAdmin(uint256 _quantity) external mintCompliance(_quantity) onlyOwner {
+    function safeMultiMintAndBurnForAdmin(uint256 _quantity)
+        external
+        mintCompliance(_quantity)
+        onlyOwner
+        whenNotPaused
+    {
         unchecked {
-            // Underflow not possible as you can't burn more than you mint
-            maxCirculatingSupply -= _quantity;
-            totalSupply -= _quantity;
-            tokensBurned += _quantity;
+            totalMintedCount += _quantity;
+            adminBurnedCount += _quantity;
         }
 
-        for (uint256 i = 0; i < _quantity; ++i) {
-            unchecked {
-                // Overflow not possible as it is capped by totalSupply (in mintCompliance modifier)
-                // Token ID is incremented first so that token ID starts at 1
-                tokenCounter++;
-            }
-            uint256 tokenId = tokenCounter;
-
-            _safeMint(msg.sender, tokenId);
-            _burn(tokenId);
-        }
+        emit DirectSale(_quantity);
     }
 
     /**
@@ -170,47 +182,46 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      * are then burned and the user is minted a corresponding VIN-X NFT.
      * @param _tokenIds An array of token IDs that are owned by the caller.
      */
-    function multiRedeem(uint256[] calldata _tokenIds) external whenNotPaused whenRedemptionIsOpen {
+    function multiRedeem(uint256[] calldata _tokenIds) external whenNotPaused canRedeem nonReentrant {
         uint256 numberOfTokens = _tokenIds.length;
+        if (numberOfTokens == 0) revert VinCask__MustRedeemAtLeastOne();
 
         for (uint256 i = 0; i < numberOfTokens; ++i) {
-            if (_isApprovedOrOwner(msg.sender, _tokenIds[i]) == false) revert VinCask__CallerNotAuthorised();
+            if (!_isApprovedOrOwner(msg.sender, _tokenIds[i])) revert VinCask__CallerNotAuthorised();
 
             uint256 tokenId = _tokenIds[i];
             _burn(tokenId);
             VIN_X.safeMint(msg.sender, tokenId);
         }
-    }
 
-    /**
-     * @dev Using this function to set approvals for individual NFTs instead of setApprovalForAll
-     * to avoid alarming users with the MetaMask warning.
-     * @param _tokenIds Array of token IDs to approve
-     */
-    function multiApprove(uint256[] calldata _tokenIds) external {
-        uint256 numOfTokens = _tokenIds.length;
-        if (numOfTokens == 0) revert VinCask__MustApproveAtLeastOne();
-
-        for (uint256 i = 0; i < numOfTokens; ++i) {
-            approve(address(this), _tokenIds[i]);
+        unchecked {
+            redemptionBurnedCount += numberOfTokens;
         }
+
+        emit Redeemed(msg.sender, numberOfTokens);
     }
 
-    function increaseCirculatingSupply(uint256 _newCirculatingSupply) external onlyOwner {
-        if (_newCirculatingSupply <= maxCirculatingSupply) revert VinCask__OnlyCanIncreaseCirculatingSupply();
-        if (_newCirculatingSupply > totalSupply) revert VinCask__CirculatingSupplyExceedsTotalSupply();
+    function increaseMintingCap(uint256 _newMintingCap) external onlyOwner {
+        if (_newMintingCap <= mintingCap) revert VinCask__OnlyCanIncreaseMintingCap();
+        if (_newMintingCap > maxSupply) revert VinCask__MintingCapExceedsMaxSupply();
 
-        maxCirculatingSupply = _newCirculatingSupply;
+        uint256 oldCap = mintingCap;
+        mintingCap = _newMintingCap;
+
+        emit MintingCapIncreased(msg.sender, oldCap, _newMintingCap);
     }
 
     /**
      * @dev Setter function to update the mint price per NFT.
-     * @param _newMintPrice The new mint price.
+     * @param _newMintPrice The new mint price in 18 decimals.
      */
     function setMintPrice(uint256 _newMintPrice) external onlyOwner {
         if (mintPrice == _newMintPrice) revert VinCask__MustSetDifferentPrice();
 
+        uint256 oldPrice = mintPrice;
         mintPrice = _newMintPrice;
+
+        emit MintPriceUpdated(msg.sender, oldPrice, _newMintPrice);
     }
 
     /**
@@ -222,7 +233,11 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     function setStableCoin(address _newStableCoin) external onlyOwner {
         if (stableCoin == IERC20(_newStableCoin)) revert VinCask__MustSetDifferentStableCoin();
 
+        address oldCoin = address(stableCoin);
         stableCoin = IERC20(_newStableCoin);
+        stableCoinDecimals = IERC20Metadata(_newStableCoin).decimals();
+
+        emit StableCoinUpdated(msg.sender, oldCoin, _newStableCoin);
     }
 
     /**
@@ -232,23 +247,62 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      */
     function setWhitelistAddress(address _address, uint256 _mintLimit) external onlyOwner {
         if (_address == address(0)) revert VinCask__InvalidAddress();
-        if (_mintLimit <= 0) revert VinCask__MustMintAtLeastOne();
+        if (_mintLimit == 0) revert VinCask__MustMintAtLeastOne();
+        if (whitelistAddresses.length >= 10) revert VinCask__WhitelistLimitExceeded();
 
         WhitelistDetails storage whitelistDetails = whitelist[_address];
 
-        // If the address has already minted before, the function will
-        // revert if the admin is wants to set a mint limit less than what
-        // the address has already minted
         if (_mintLimit < whitelistDetails.amountMinted) revert VinCask__CannotSetMintLimitLowerThanMintedAmount();
 
-        // Adds the address to the whitelist addresses array,
-        // won't add multiple instances if admin is updating the mint limit
         if (!whitelistDetails.isWhitelisted) {
             whitelistAddresses.push(_address);
         }
 
         whitelistDetails.isWhitelisted = true;
         whitelistDetails.mintLimit = _mintLimit;
+
+        emit WhitelistAddressAdded(msg.sender, _address, _mintLimit);
+    }
+
+    /**
+     * @dev Setter function to update the multiSig address.
+     * @param _newMultiSig The new multiSig address.
+     */
+    function setMultiSig(address _newMultiSig) external onlyOwner {
+        if (_newMultiSig == address(0)) revert VinCask__InvalidAddress();
+        if (_newMultiSig == multiSig) revert VinCask__MustSetDifferentAddress();
+
+        address oldMultiSig = multiSig;
+        multiSig = _newMultiSig;
+
+        emit MultiSigUpdated(msg.sender, oldMultiSig, _newMultiSig);
+    }
+
+    /**
+     * @dev Setter function to update the royalty receiver and fee.
+     * @param _receiver The new address to receive royalties
+     * @param _feeNumerator The new royalty fee in basis points (e.g., 500 = 5%)
+     */
+    function setDefaultRoyalty(address _receiver, uint96 _feeNumerator) external onlyOwner {
+        if (_receiver == address(0)) revert VinCask__InvalidAddress();
+
+        _setDefaultRoyalty(_receiver, _feeNumerator);
+
+        emit RoyaltyUpdated(msg.sender, _receiver, _feeNumerator);
+    }
+
+    /**
+     * @dev Setter function to update the crossmint address.
+     * @param _newCrossmintAddress The new crossmint address.
+     */
+    function setCrossmintAddress(address _newCrossmintAddress) external onlyOwner {
+        if (_newCrossmintAddress == address(0)) revert VinCask__InvalidAddress();
+        if (_newCrossmintAddress == crossmintAddress) revert VinCask__MustSetDifferentAddress();
+
+        address oldAddress = crossmintAddress;
+        crossmintAddress = _newCrossmintAddress;
+
+        emit CrossmintAddressUpdated(msg.sender, oldAddress, _newCrossmintAddress);
     }
 
     /**
@@ -267,6 +321,8 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
 
         uint256 whitelistAddressIndex = _findIndex(_address);
         _removeAddressFromWhitelistArray(whitelistAddressIndex);
+
+        emit WhitelistAddressRemoved(msg.sender, _address);
     }
 
     /**
@@ -291,28 +347,41 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     }
 
     /**
-     * @dev Returns the total supply.
+     * @dev Returns the maximum possible supply of tokens.
      */
-    function getTotalSupply() external view returns (uint256) {
-        return totalSupply;
+    function getMaxSupply() external view returns (uint256) {
+        return maxSupply;
     }
 
     /**
      * @dev Returns the latest token ID that has been minted.
      */
     function getLatestTokenId() external view returns (uint256) {
-        return tokenCounter;
+        return totalMintedCount;
     }
 
     /**
-     * @dev Returns the circulating supply of tokens, i.e. net tokens minted (Total minted - total burned).
+     * @dev Returns the total supply of tokens currently in circulation.
+     * This is calculated as the total number of tokens minted minus the tokens burned by admin
+     * and the tokens burned through redemption.
      */
-    function getCirculatingSupply() public view returns (uint256) {
-        return tokenCounter - tokensBurned;
+    function totalSupply() public view returns (uint256) {
+        return totalMintedCount - adminBurnedCount - redemptionBurnedCount;
     }
 
-    function getMaxCirculatingSupply() external view returns (uint256) {
-        return maxCirculatingSupply;
+    /**
+     * @dev Returns the total number of tokens minted for the minting cap calculation.
+     * This is the net tokens minted, calculated as (total minted - total burned by admin).
+     */
+    function getTotalMintedForCap() public view returns (uint256) {
+        return totalMintedCount - adminBurnedCount;
+    }
+
+    /**
+     * @dev Returns the minting cap for the contract.
+     */
+    function getMintingCap() external view returns (uint256) {
+        return mintingCap;
     }
 
     /**
@@ -330,12 +399,37 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     }
 
     /**
+     * @dev Returns the number of decimals used by the stablecoin.
+     */
+    function getStableCoinDecimals() external view returns (uint8) {
+        return stableCoinDecimals;
+    }
+
+    /**
      * @dev Returns the address of the VinCask MultiSig.
      */
     function getMultiSig() external view returns (address) {
-        return MULTI_SIG;
+        return multiSig;
     }
 
+    /**
+     * @dev Returns the address of the Crossmint contract.
+     */
+    function getCrossmintAddress() external view returns (address) {
+        return crossmintAddress;
+    }
+
+    /**
+     * @dev Returns the address of the VinCask-X contract.
+     * VinCask NFTs that are redeemed are given VinCask-X NFTs in return.
+     */
+    function getVinCaskXAddress() external view returns (address) {
+        return address(VIN_X);
+    }
+
+    /**
+     * @dev Returns whether the redemption process is currently open.
+     */
     function isRedemptionOpen() public view returns (bool) {
         return redemptionOpen;
     }
@@ -376,30 +470,29 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
      * @dev Allows a user to mint multiple NFTs in one transaction.
      * @param _quantity The number of NFTs to mint
      * @param _to The recipient of the NFT(s)
-     * @param _mintPrice The price of each NFT
+     * @param _mintPrice The price of each NFT (assumes price is in 18 decimals)
      */
-    function _safeMultiMint(uint256 _quantity, address _to, uint256 _mintPrice) internal {
+    function _safeMultiMint(uint256 _quantity, address _to, uint256 _mintPrice, MintType _mintType) internal {
         uint256 totalPrice = _quantity * _mintPrice;
 
         if (totalPrice > 0) {
-            // We skip this external call for whitelist mints, i.e. when totalPrice == 0
-            bool success = stableCoin.transferFrom(msg.sender, MULTI_SIG, totalPrice);
-            /**
-             * @note Remove this check? It will never return false based on OZ's implenentation.
-             */
-            if (!success) revert VinCask__PaymentFailed();
+            // Convert price to stablecoin's decimals from default 18 decimals
+            uint256 adjustedPrice = totalPrice * (10 ** stableCoinDecimals) / 1e18;
+
+            stableCoin.safeTransferFrom(msg.sender, multiSig, adjustedPrice);
         }
 
         for (uint256 i = 0; i < _quantity; ++i) {
             unchecked {
                 // Overflow not possible as it is capped by totalSupply (in mintCompliance)
                 // Token ID is incremented first so that token ID starts at 1
-                tokenCounter++;
+                totalMintedCount++;
             }
-            uint256 tokenId = tokenCounter;
 
-            _safeMint(_to, tokenId);
+            _safeMint(_to, totalMintedCount);
         }
+
+        emit Minted(_to, _mintPrice, _quantity, _mintType);
     }
 
     /**
@@ -452,13 +545,6 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, IVinCask {
     function _baseURI() internal pure override returns (string memory) {
         // Placeholder URI
         return "ipfs://abc/";
-    }
-
-    /**
-     * @notice Remove this function? OZ includes this in their contract wizard, but this contract does not use this hook.
-     */
-    function _beforeTokenTransfer(address _from, address _to, uint256 _tokenId, uint256 _batchSize) internal override {
-        super._beforeTokenTransfer(_from, _to, _tokenId, _batchSize);
     }
 
     function supportsInterface(bytes4 _interfaceId) public view override(ERC721, ERC721Royalty) returns (bool) {

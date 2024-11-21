@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
-import "forge-std/StdInvariant.sol";
-import "forge-std/Test.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
-import "../../script/DeployVinCask.s.sol";
-import "../../script/HelperConfig.s.sol";
-import "../../src/VinCask.sol";
-import "../../src/VinCaskX.sol";
-import "../../src/mocks/UsdcMock.sol";
-import "./Handler.t.sol";
+import {DeployVinCask} from "../../script/DeployVinCask.s.sol";
+import {HelperConfig} from "../../script/HelperConfig.s.sol";
+import {VinCask} from "../../src/VinCask.sol";
+import {VinCaskX} from "../../src/VinCaskX.sol";
+import {UsdcMock} from "../../src/mocks/UsdcMock.sol";
+import {Handler} from "./Handler.t.sol";
+
+import {StdInvariant} from "forge-std/StdInvariant.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract InvariantsTest is StdInvariant, Test {
     using Strings for uint256;
@@ -39,26 +40,13 @@ contract InvariantsTest is StdInvariant, Test {
         targetContract(address(handler));
     }
 
-    function invariant_SumOfAllMintsIsLessThanOrEqualToTotalSupply() external {
-        uint256 totalSupply = vin.getTotalSupply();
+    function invariant_TokenSupplyAndBalanceTrackingIsValid() external {
+        uint256 maxSupply = vin.getMaxSupply();
         uint256 netNftsMinted = handler.nftsMinted() - handler.nftsBurned();
-        uint256 circulatingSupply = vin.getCirculatingSupply();
-        uint256 maxCirculatingSupply = vin.getMaxCirculatingSupply();
+        uint256 totalMintedForCap = vin.getTotalMintedForCap();
+        uint256 mintingCap = vin.getMintingCap();
         uint256 vinXMinted;
-
-        console.log("Total supply:                            ", totalSupply);
-        console.log("Circulating supply:                      ", circulatingSupply);
-        console.log("Max circulating supply:                  ", maxCirculatingSupply, "\n");
-
-        console.log("Net NFTs minted:                         ", netNftsMinted);
-        console.log("NFTs minted:                             ", handler.nftsMinted());
-        console.log("NFTs burned:                             ", handler.nftsBurned());
-        console.log("NFTs redeemed:                           ", handler.nftsRedeemed(), "\n");
-
-        console.log("Times mint called:                       ", handler.mintCalled());
-        console.log("Times redeem called:                     ", handler.redeemCalled());
-        console.log("Times admin mint & burn called:          ", handler.adminMintAndBurnCalled());
-        console.log("Times increase circulating supply called:", handler.adminIncreaseCirculatingSupplyCalled(), "\n");
+        uint256 totalUserBalance;
 
         for (uint256 i = 0; i < NUM_OF_USERS; ++i) {
             address user = users[i];
@@ -68,7 +56,40 @@ contract InvariantsTest is StdInvariant, Test {
             console.log("User:", user, "NFT balance:", numOfNfts);
         }
 
-        assertEq(handler.nftsRedeemed(), vinXMinted);
-        assertLe(netNftsMinted, totalSupply);
+        assertLe(totalMintedForCap, mintingCap, "Total minted exceeds minting cap");
+        assertEq(handler.nftsRedeemed(), vinXMinted, "NFTs redeemed does not match VIN-X balance");
+        assertLe(handler.nftsMinted(), maxSupply, "Total minted exceeds max supply");
+
+        uint256 contractTotalSupply = vin.totalSupply();
+        uint256 handlerNetSupply = handler.nftsMinted() - handler.nftsBurned() - handler.nftsRedeemed();
+        assertEq(contractTotalSupply, handlerNetSupply, "Supply tracking mismatched");
+
+        for (uint256 i = 0; i < NUM_OF_USERS; ++i) {
+            address user = users[i];
+            totalUserBalance += handler.nftsOwnedCount(user);
+        }
+
+        assertEq(totalUserBalance, contractTotalSupply, "Sum of balances doesn't match total supply");
+
+        console.log("\n");
+        console.log("Total supply:                            ", maxSupply);
+        console.log("Total minted through contract:           ", totalMintedForCap);
+        console.log("Minting cap:                             ", mintingCap, "\n");
+
+        console.log("Net NFTs minted:                         ", netNftsMinted);
+        console.log("NFTs minted (includes offline sales):    ", handler.nftsMinted());
+        console.log("NFTs burned (offline sales):             ", handler.nftsBurned());
+        console.log("NFTs redeemed:                           ", handler.nftsRedeemed(), "\n");
+
+        console.log("Contract supply:                         ", contractTotalSupply);
+        console.log("Handler supply:                          ", handlerNetSupply, "\n");
+
+        console.log("Total supply:                            ", totalUserBalance);
+        console.log("Total user balance:                      ", totalUserBalance, "\n");
+
+        console.log("Times mint called:                       ", handler.mintCalled());
+        console.log("Times redeem called:                     ", handler.redeemCalled());
+        console.log("Times admin mint & burn called:          ", handler.adminMintAndBurnCalled());
+        console.log("Times increase minting cap called:       ", handler.adminIncreaseMintingCapCalled(), "\n");
     }
 }
