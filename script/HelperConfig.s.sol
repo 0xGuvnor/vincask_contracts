@@ -63,7 +63,7 @@ contract HelperConfig is Script {
             maxSupply: MAX_SUPPLY,
             mintPrice: MINT_PRICE,
             stableCoin: 0xa4Eb0D6f240F6F7BA3561Fc2a118B27C4438F7ed, // Deployed UsdcMock from src/mocks/UsdcMock.sol
-            multiSig: 0xe8dD2e445646DB4a94Ad298BD0CdA43f64BeD151, /* Deployer testing (EOA) wallet */
+            multiSig: 0xF303Ab4FBD1182ACE7B31E99eCd6A3e8Dc525B7E, /* Deployer testing (EOA) wallet */
             royaltyFee: ROYALTY_FEE,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });

@@ -31,6 +31,7 @@ contract VinCaskTest is Test {
     event MultiSigUpdated(address indexed account, address indexed oldMultiSig, address indexed newMultiSig);
     event CrossmintAddressUpdated(address indexed account, address indexed oldAddress, address indexed newAddress);
     event RoyaltyUpdated(address indexed account, address indexed receiver, uint96 indexed feeNumerator);
+    event BaseURIUpdated(address indexed account, string oldURI, string newURI);
 
     VinCask vin;
     VinCaskX vinX;
@@ -439,15 +440,6 @@ contract VinCaskTest is Test {
 
         assertNotEq(startingStableCoin, endingStableCoin, "Stablecoin address should be different");
         assertEq(address(newStableCoin), endingStableCoin, "Stablecoin should match new address");
-    }
-
-    function test_TokenUriReturnsCorrectString() external userMint(1) {
-        uint256 tokenId = vin.getLatestTokenId();
-        assertEq(
-            abi.encodePacked(vin.tokenURI(1)),
-            abi.encodePacked("ipfs://abc/", tokenId.toString()),
-            "Token URI should match expected format"
-        );
     }
 
     function test_OwnerCanPauseAndUnpauseMinting() external {
@@ -899,5 +891,103 @@ contract VinCaskTest is Test {
         vm.expectRevert("ERC721: invalid token ID");
         vin.ownerOf(2);
         assertEq(vin.ownerOf(3), USER, "User should still own unredeemed token ID 3");
+    }
+
+    function test_MaxSupplyEnforcedAcrossAllMintTypes() external {
+        // First increase minting cap to allow for more online mints
+        vm.prank(admin);
+        vin.increaseMintingCap(maxSupply);
+
+        // Get the number of decimals used by the USDC token and adjust price
+        uint256 usdcDecimals = usdc.decimals();
+        uint256 adjustedPrice = mintPrice / (10 ** (18 - usdcDecimals));
+
+        // Setup test quantities
+        uint256 regularMints = 50;
+        uint256 adminMints = 50;
+        uint256 remainingToMax = maxSupply - (regularMints + adminMints);
+
+        // Regular mints through stablecoin
+        vm.startPrank(USER);
+        usdc.mint(USER, adjustedPrice * regularMints);
+        usdc.approve(address(vin), adjustedPrice * regularMints);
+        vin.safeMultiMintWithStableCoin(regularMints);
+        vm.stopPrank();
+
+        // Admin mints and burns
+        vm.prank(admin);
+        vin.safeMultiMintAndBurnForAdmin(adminMints);
+
+        // Attempt to mint more than remaining supply (should fail)
+        vm.startPrank(USER);
+        usdc.mint(USER, adjustedPrice * (remainingToMax + 1));
+        usdc.approve(address(vin), adjustedPrice * (remainingToMax + 1));
+        vm.expectRevert(IVinCask.VinCask__MaxSupplyExceeded.selector);
+        vin.safeMultiMintWithStableCoin(remainingToMax + 1);
+        vm.stopPrank();
+
+        // Mint exactly up to max supply
+        vm.startPrank(USER);
+        usdc.approve(address(vin), adjustedPrice * remainingToMax);
+        vin.safeMultiMintWithStableCoin(remainingToMax);
+        vm.stopPrank();
+
+        // Verify final state
+        assertEq(vin.getLatestTokenId(), maxSupply, "Total minted should equal max supply");
+
+        // Verify no more mints possible through any method
+        vm.startPrank(USER);
+        usdc.mint(USER, adjustedPrice);
+        usdc.approve(address(vin), adjustedPrice);
+        vm.expectRevert(IVinCask.VinCask__MaxSupplyExceeded.selector);
+        vin.safeMultiMintWithStableCoin(1);
+        vm.stopPrank();
+
+        vm.prank(admin);
+        vm.expectRevert(IVinCask.VinCask__MaxSupplyExceeded.selector);
+        vin.safeMultiMintAndBurnForAdmin(1);
+
+        vm.prank(CROSSMINT);
+        vm.expectRevert(IVinCask.VinCask__MaxSupplyExceeded.selector);
+        vin.safeMultiMintWithCreditCard(1, USER);
+    }
+
+    function test_CanSetAndGetBaseURI() external {
+        string memory newBaseURI = "ipfs://newuri/";
+        string memory oldURI = vin.getBaseURI();
+
+        vm.expectEmit(true, false, false, false, address(vin));
+        emit BaseURIUpdated(admin, oldURI, newBaseURI);
+
+        vm.prank(admin);
+        vin.setBaseURI(newBaseURI);
+
+        assertEq(vin.getBaseURI(), newBaseURI, "Base URI should be updated");
+    }
+
+    function test_OnlyOwnerCanSetBaseURI() external {
+        string memory newBaseURI = "ipfs://newuri/";
+
+        vm.prank(USER);
+        vm.expectRevert("Ownable: caller is not the owner");
+        vin.setBaseURI(newBaseURI);
+    }
+
+    function test_CannotSetEmptyBaseURI() external {
+        vm.prank(admin);
+        vm.expectRevert(IVinCask.VinCask__InvalidURI.selector);
+        vin.setBaseURI("");
+    }
+
+    function test_TokenUriUpdatesWithNewBaseUri() external userMint(1) {
+        string memory newBaseURI = "ipfs://newuri/";
+        uint256 tokenId = vin.getLatestTokenId();
+
+        vm.prank(admin);
+        vin.setBaseURI(newBaseURI);
+
+        assertEq(
+            vin.tokenURI(tokenId), string.concat(newBaseURI, tokenId.toString()), "Token URI should use new base URI"
+        );
     }
 }

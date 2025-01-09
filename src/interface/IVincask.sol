@@ -8,6 +8,7 @@ pragma solidity 0.8.18;
  * @dev This interface defines the functions and events for minting, redeeming, and managing VinCask NFTs
  */
 interface IVinCask {
+    error VinCask__InvalidURI();
     error VinCask__InvalidAddress();
     error VinCask__RedemptionNotOpen();
     error VinCask__MaxSupplyExceeded();
@@ -63,6 +64,7 @@ interface IVinCask {
     event MultiSigUpdated(address indexed account, address indexed oldMultiSig, address indexed newMultiSig);
     event CrossmintAddressUpdated(address indexed account, address indexed oldAddress, address indexed newAddress);
     event RoyaltyUpdated(address indexed account, address indexed receiver, uint96 indexed feeNumerator);
+    event BaseURIUpdated(address indexed account, string oldURI, string newURI);
 
     function safeMultiMintWithStableCoin(uint256 _quantity) external;
 
@@ -119,4 +121,14 @@ interface IVinCask {
     function getVinCaskXAddress() external view returns (address);
 
     function isRedemptionOpen() external view returns (bool);
+
+    function setBaseURI(string memory _newBaseURI) external;
+
+    function getBaseURI() external view returns (string memory);
+
+    function pause() external;
+
+    function unpause() external;
+
+    function totalSupply() external view returns (uint256);
 }

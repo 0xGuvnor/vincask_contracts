@@ -44,6 +44,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, ReentrancyGuard, IVinCask {
     using SafeERC20 for IERC20;
 
+    string private baseURI;
     bool private redemptionOpen;
     uint256 private mintPrice;
     IERC20 private stableCoin;
@@ -91,10 +92,13 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, ReentrancyGuard, I
      * @param _quantity The number of NFTs to mint.
      */
     modifier mintCompliance(uint256 _quantity) {
-        uint256 currentMinted = getTotalMintedForCap();
+        // Check against absolute maximum supply using total mints
+        if (totalMintedCount + _quantity > maxSupply) revert VinCask__MaxSupplyExceeded();
 
-        if (currentMinted + _quantity > maxSupply) revert VinCask__MaxSupplyExceeded();
-        if (currentMinted + _quantity > mintingCap) revert VinCask__MintingCapExceeded();
+        // Check against minting cap using only onchain sales
+        uint256 onlineMintedCount = getTotalMintedForCap();
+        if (onlineMintedCount + _quantity > mintingCap) revert VinCask__MintingCapExceeded();
+
         if (_quantity == 0) revert VinCask__MustMintAtLeastOne();
         _;
     }
@@ -279,6 +283,19 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, ReentrancyGuard, I
     }
 
     /**
+     * @dev Setter function to update the base URI.
+     * @param _newBaseURI The new base URI.
+     */
+    function setBaseURI(string memory _newBaseURI) external onlyOwner {
+        if (bytes(_newBaseURI).length == 0) revert VinCask__InvalidURI();
+
+        string memory oldURI = baseURI;
+        baseURI = _newBaseURI;
+
+        emit BaseURIUpdated(msg.sender, oldURI, _newBaseURI);
+    }
+
+    /**
      * @dev Setter function to update the royalty receiver and fee.
      * @param _receiver The new address to receive royalties
      * @param _feeNumerator The new royalty fee in basis points (e.g., 500 = 5%)
@@ -428,6 +445,14 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, ReentrancyGuard, I
     }
 
     /**
+     * @dev Getter function to view the current base URI.
+     * @return The current base URI.
+     */
+    function getBaseURI() external view returns (string memory) {
+        return baseURI;
+    }
+
+    /**
      * @dev Returns whether the redemption process is currently open.
      */
     function isRedemptionOpen() public view returns (bool) {
@@ -542,9 +567,8 @@ contract VinCask is ERC721, ERC721Royalty, Pausable, Ownable, ReentrancyGuard, I
     /**
      * @dev See {ERC721-_baseURI}.
      */
-    function _baseURI() internal pure override returns (string memory) {
-        // Placeholder URI
-        return "ipfs://abc/";
+    function _baseURI() internal view override returns (string memory) {
+        return baseURI;
     }
 
     function supportsInterface(bytes4 _interfaceId) public view override(ERC721, ERC721Royalty) returns (bool) {
