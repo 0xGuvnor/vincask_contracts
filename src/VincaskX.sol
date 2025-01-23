@@ -26,6 +26,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
  */
 contract VinCaskX is IVinCaskX, ERC721, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    string private baseURI;
 
     /**
      * @dev Initializes the contract and grants DEFAULT_ADMIN_ROLE to the deployer.
@@ -48,9 +49,29 @@ contract VinCaskX is IVinCaskX, ERC721, AccessControl {
         _safeMint(_to, _tokenId);
     }
 
-    function _baseURI() internal pure override returns (string memory) {
-        // Placeholder URI
-        return "ipfs://def/";
+    /**
+     * @dev Setter function to update the base URI.
+     * @param _newBaseURI The new base URI.
+     */
+    function setBaseURI(string memory _newBaseURI) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (bytes(_newBaseURI).length == 0) revert("VinCaskX: Invalid URI");
+
+        string memory oldURI = baseURI;
+        baseURI = _newBaseURI;
+
+        emit BaseURIUpdated(msg.sender, oldURI, _newBaseURI);
+    }
+
+    /**
+     * @dev Getter function to view the current base URI.
+     * @return The current base URI.
+     */
+    function getBaseURI() external view returns (string memory) {
+        return baseURI;
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return baseURI;
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721, AccessControl) returns (bool) {
